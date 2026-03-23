@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name">CpT Para Celulares</string>
+    <string name="disconnect">Desconectar</string>
+    <string name="status">Estatus: %1$s</string>
+    <string name="found_usb_device_s">Encontró %1$d dispositivo(s) USB</string>
+    <string name="refresh_usb">Refrescar USB</string>
+    <string name="already_have_permission_for">Ya tenemos permiso para %1$s</string>
+    <string name="requesting_permission_for">Pidiendo permiso para %1$s</string>
+    <string name="permission">Permiso</string>
+    <string name="no_usb_devices_detected_plug_arduino_via_otg_then_refresh">Ningún dispositivo USB detectado. Enchufe el Arduino por USB OTG, luego Refrescar.</string>
+    <string name="detected_devices">Dispositivo(s) detectado(s):</string>
+    <string name="log">Registro:</string>
+    <string name="hide">Ocultar</string>
+    <string name="show">Mostrar</string>
+    <string name="live_monitor_plot">Monitorear en Vivo + Graficar</string>
+    <string name="latest">Últimos datos: —</string>
+    <string name="latest_t_ms_y">Último: t=%1$d ms, y=%2$s</string>
+    <string name="tmin_s_ago">tMin (hace _ seg)</string>
+    <string name="tmax_s_ago">tMax (hace _ seg)</string>
+    <string name="follow_live">Seguir en vivo</string>
+    <string name="no_samples_yet_stream_numeric_data_to_plot">Ningún dato todavía. Enviar datos numéricos al gráfico</string>
+    <string name="permission_result_no_device">Resultado: ningún dispositivo detectado?</string>
+    <string name="connect">Conectar</string>
+    <string name="sensorbridge">CpT Para Celulares</string>
+
+</resources>

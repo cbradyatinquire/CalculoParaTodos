@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.res.stringResource
 
 
 data class Sample(val tMs: Long, val y: Float)
@@ -109,7 +110,7 @@ fun AppScreen() {
     DisposableEffect(Unit) {
         val receiver = usbHelper.makePermissionReceiver { device, granted ->
             val msg = if (device == null) {
-                "Permission result: no device?"
+                context.getString(R.string.permission_result_no_device)
             } else {
                 "Permission for ${deviceName(device)}: ${if (granted) "GRANTED" else "DENIED"}"
             }
@@ -180,29 +181,31 @@ fun AppScreen() {
         verticalArrangement = Arrangement.spacedBy(10.dp),
         horizontalAlignment = Alignment.Start
     ) {
-        Text("SensorBridge", style = MaterialTheme.typography.headlineSmall)
-        Text("Status: $status")
+        Text(stringResource(R.string.sensorbridge), style = MaterialTheme.typography.headlineSmall)
+        Text(stringResource(R.string.status, status))
 
         // USB controls
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = {
                 devices = usbHelper.listDevices()
-                status = "Found ${devices.size} USB device(s)"
-            }) { Text("Refresh USB") }
+                status = context.getString(R.string.found_usb_device_s, devices.size)
+            }) { Text(stringResource(R.string.refresh_usb)) }
 
             Button(
                 enabled = devices.isNotEmpty(),
                 onClick = {
                     val dev = devices.first()
                     if (usbHelper.hasPermission(dev)) {
-                        status = "Already have permission for ${deviceName(dev)}"
+                        status =
+                            context.getString(R.string.already_have_permission_for, deviceName(dev))
                     } else {
-                        status = "Requesting permission for ${deviceName(dev)}"
+                        status =
+                            context.getString(R.string.requesting_permission_for, deviceName(dev))
                         usbHelper.requestPermission(dev)
                     }
                     addLog(status)
                 }
-            ) { Text("Permission") }
+            ) { Text(stringResource(R.string.permission)) }
         }
 
         // Serial controls
@@ -226,7 +229,7 @@ fun AppScreen() {
                     status = msg
                     addLog(msg)
                 }
-            ) { Text("Connect") }
+            ) { Text(stringResource(R.string.connect)) }
 
             Button(onClick = {
                 val msg = serialManager.sendLine("PING")
@@ -238,7 +241,7 @@ fun AppScreen() {
                 val msg = serialManager.disconnect()
                 status = msg
                 addLog(msg)
-            }) { Text("Disconnect") }
+            }) { Text(stringResource(R.string.disconnect)) }
         }
 
         Divider()
@@ -251,9 +254,9 @@ fun AppScreen() {
             item {
                 // Device list
                 if (devices.isEmpty()) {
-                    Text("No USB devices detected. Plug Arduino via OTG, then Refresh.")
+                    Text(stringResource(R.string.no_usb_devices_detected_plug_arduino_via_otg_then_refresh))
                 } else {
-                    Text("Detected devices:", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.detected_devices), fontWeight = FontWeight.Bold)
                     devices.forEach { dev ->
                         Text(
                             "- ${deviceName(dev)}  VID=0x${dev.vendorId.toString(16)}  PID=0x${dev.productId.toString(16)}  perm=${usbHelper.hasPermission(dev)}"
@@ -265,7 +268,7 @@ fun AppScreen() {
 
             item {
                 // Log
-                Text("Log:", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.log), fontWeight = FontWeight.Bold)
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -277,7 +280,7 @@ fun AppScreen() {
                         maxLines = 1
                     )
                     TextButton(onClick = { showLog = !showLog }) {
-                        Text(if (showLog) "Hide" else "Show")
+                        Text(if (showLog) stringResource(R.string.hide) else stringResource(R.string.show))
                     }
                 }
 
@@ -300,7 +303,7 @@ fun AppScreen() {
 
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Live Monitor + Plot", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.live_monitor_plot), style = MaterialTheme.typography.titleMedium)
 
                         // Variable selector (if you have >1 var)
                         if (vars.isNotEmpty()) {
@@ -329,9 +332,9 @@ fun AppScreen() {
 
                         Text(
                             text = if (latest == null)
-                                "Latest: —"
+                                stringResource(R.string.latest)
                             else
-                                "Latest: t=${latest.tMs} ms, y=${latest.y}"
+                                stringResource(R.string.latest_t_ms_y, latest.tMs, latest.y)
                         )
 
                         // Time window controls
@@ -343,14 +346,14 @@ fun AppScreen() {
                                 OutlinedTextField(
                                     value = tMinAgoSecText,
                                     onValueChange = { tMinAgoSecText = it },
-                                    label = { Text("tMin (s ago)") },
+                                    label = { Text(stringResource(R.string.tmin_s_ago)) },
                                     singleLine = true,
                                     modifier = Modifier.width(140.dp)
                                 )
                                 OutlinedTextField(
                                     value = tMaxAgoSecText,
                                     onValueChange = { tMaxAgoSecText = it },
-                                    label = { Text("tMax (s ago)") },
+                                    label = { Text(stringResource(R.string.tmax_s_ago)) },
                                     singleLine = true,
                                     modifier = Modifier.width(140.dp)
                                 )
@@ -364,7 +367,7 @@ fun AppScreen() {
                                         frozenNowMs = if (checked) null else SystemClock.elapsedRealtime()
                                     }
                                 )
-                                Text("Follow live")
+                                Text(stringResource(R.string.follow_live))
                             }
                         }
 
@@ -424,7 +427,7 @@ fun AppScreen() {
                                     .height(220.dp)
                             )
                         } else {
-                            Text("No samples yet. Stream numeric data to plot.")
+                            Text(stringResource(R.string.no_samples_yet_stream_numeric_data_to_plot))
                         }
                     }
                 }
