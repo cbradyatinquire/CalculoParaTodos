@@ -1,0 +1,26 @@
+
+# macOS
+.DS_Store
+
+# Android Studio / IntelliJ
+**/.idea/
+**/*.iml
+
+# Gradle
+**/.gradle/
+**/build/
+
+# Android local SDK path
+**/local.properties
+
+# Native build artifacts (if any)
+**/.externalNativeBuild/
+**/.cxx/
+
+# Signing keys (never commit)
+**/*.jks
+**/*.keystore
+
+# Sometimes Android Studio outputs bundles here
+SensorBridge/app/release/
+SensorBridge/app/debug/
