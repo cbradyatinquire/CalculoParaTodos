@@ -24,5 +24,9 @@
     <string name="sensorbridge">CpT Móvil</string>
     <string name="export">Exportar CSV</string>
     <string name="clear">Borrar Datos</string>
+    <string name="eraseall">¿Borrar todos los datos?</string>
+    <string name="areyousureerase">¿Está seguro que usted quiere borrar todos los datos?  Esto no puede deshacerse.</string>
+    <string name="yesconfirm">Sí</string>
+    <string name="cancelconfirm">Cancelar</string>
 
 </resources>

@@ -24,5 +24,9 @@
     <string name="sensorbridge">Arduino Data</string>
     <string name="export">Export CSV</string>
     <string name="clear">Clear Data</string>
+    <string name="eraseall">Erase All Data?</string>
+    <string name="areyousureerase">Are you sure you want to erase all data?  This cannot be undone.</string>
+    <string name="yesconfirm">Yes</string>
+    <string name="cancelconfirm">Cancel</string>
 
 </resources>

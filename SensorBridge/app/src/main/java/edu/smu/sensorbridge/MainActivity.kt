@@ -107,11 +107,11 @@ fun AppScreen() {
     var selectedVar by remember { mutableStateOf<String?>(null) }
 
     var showLog by remember { mutableStateOf(false) }
-    var frozenNowMs by remember { mutableStateOf<Long?>(null) }
+
+    var showClearDialog by remember { mutableStateOf(false) }
 
     val maxSamplesPerVar = 20_000
 
-    var t0Ms by remember { mutableStateOf<Long?>(null) }
     var t0AbsMs by remember { mutableStateOf<Long?>(null) }      // absolute baseline
     var frozenNowRelMs by remember { mutableStateOf<Long?>(null) } // relative freeze
 
@@ -286,8 +286,36 @@ fun AppScreen() {
 
             Button(
                 enabled = seriesMap.isNotEmpty(),
-                onClick = { clearData() }
+                onClick = {
+                    //dialogNowSnapshotMs = frozenNowRelMs ?: nowRelMs()   // use your relative-time “now”
+                    //prevFrozenNowRelMs = frozenNowRelMs          // remember prior state (often null)
+                    //dialogNowSnapshotMs = nowRelMs()             // capture "now" (relative)
+                    //frozenNowRelMs = dialogNowSnapshotMs         // freeze plot while dialog is open
+                    showClearDialog = true
+                }
             ) { Text(stringResource(R.string.clear)) }
+
+            if (showClearDialog) {
+                AlertDialog(
+                    onDismissRequest = {
+                        //frozenNowRelMs = prevFrozenNowRelMs   // restore anchor
+                        showClearDialog = false },
+                    title = { Text(stringResource(R.string.eraseall)) },
+                    text = { Text(stringResource(R.string.areyousureerase)) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            clearData()
+                            showClearDialog = false
+                        }) { Text(stringResource(R.string.yesconfirm)) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            //frozenNowRelMs = prevFrozenNowRelMs;
+                            //frozenNowRelMs = dialogNowSnapshotMs
+                            showClearDialog = false }) { Text(stringResource(R.string.cancelconfirm)) }
+                    }
+                )
+            }
         }
 
         // Serial controls
@@ -296,6 +324,8 @@ fun AppScreen() {
                 enabled = devices.isNotEmpty() && usbHelper.hasPermission(devices.first()),
                 onClick = {
                     val dev = devices.first()
+                    followLive = true
+                    frozenNowRelMs = null
                     val msg = serialManager.connect(dev, 115200) { rxLine ->
                         // serial callback is background thread -> hop to main
                         mainHandler.post {
@@ -319,6 +349,8 @@ fun AppScreen() {
                 val msg = serialManager.disconnect()
                 status = msg
                 addLog(msg)
+                followLive = false
+                frozenNowRelMs = nowRelMs()
             }) { Text(stringResource(R.string.disconnect)) }
 
             Button(
