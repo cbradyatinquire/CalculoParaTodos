@@ -111,9 +111,25 @@ fun AppScreen() {
 
     val maxSamplesPerVar = 20_000
 
+    var t0Ms by remember { mutableStateOf<Long?>(null) }
+    var t0AbsMs by remember { mutableStateOf<Long?>(null) }      // absolute baseline
+    var frozenNowRelMs by remember { mutableStateOf<Long?>(null) } // relative freeze
+
+    fun nowRelMs(): Long {
+        val abs = SystemClock.elapsedRealtime()
+        val t0 = t0AbsMs ?: abs
+        return abs - t0
+    }
+
+    
+
     fun addSample(varName: String, y: Float) {
         val nowMs = SystemClock.elapsedRealtime()
-        val s = Sample(nowMs, y)
+        // when you add the first sample, set baseline once
+        if (t0AbsMs == null) t0AbsMs = SystemClock.elapsedRealtime() //new
+        if (t0Ms == null) t0Ms = nowMs  //new
+        val relMs = nowMs - (t0Ms ?: nowMs) //new
+        val s = Sample(relMs, y)   // now Sample.tMs is “ms since start of connection”
 
         val list = seriesMap.getOrPut(varName) { mutableListOf() }
         list.add(s)
@@ -187,6 +203,12 @@ fun AppScreen() {
                 val name = parts[0].trim()
                 val type = parts[1].trim().lowercase()
                 val valueStr = parts[2].trim()
+
+                //adding - hoping to remove garbage variable names
+                fun isCleanVarName(name: String) =
+                    name.isNotBlank() && name.all { it.code in 32..126 } // printable ASCII
+                // or stricter: it.isLetterOrDigit() || it=='_' || it=='-'
+                if (!isCleanVarName(name)) return
 
                 if (type.startsWith("n")) {
                     val y = valueStr.toFloatOrNull()
@@ -413,7 +435,8 @@ fun AppScreen() {
                                     checked = followLive,
                                     onCheckedChange = { checked ->
                                         followLive = checked
-                                        frozenNowMs = if (checked) null else SystemClock.elapsedRealtime()
+                                        //frozenNowMs = if (checked) null else SystemClock.elapsedRealtime()
+                                        frozenNowRelMs = if (checked) null else nowRelMs()
                                     }
                                 )
                                 Text(stringResource(R.string.follow_live))
@@ -449,8 +472,10 @@ fun AppScreen() {
                         }
 
                         // Plot
-                        val nowMs = frozenNowMs ?: SystemClock.elapsedRealtime()
+                        val nowMs = frozenNowRelMs ?: nowRelMs()
                         val (tMinMs, tMaxMs) = computeWindow(nowMs) ?: (nowMs - 10_000L to nowMs)
+                        //val nowMs = frozenNowMs ?: SystemClock.elapsedRealtime()
+                        //val (tMinMs, tMaxMs) = computeWindow(nowMs) ?: (nowMs - 10_000L to nowMs)
                         if (currentSeries.isNotEmpty()) {
                             val (plotYMin, plotYMax) =
                                 if (autoY) {
