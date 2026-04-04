@@ -26,6 +26,54 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.res.stringResource
 
+import android.content.Intent
+import androidx.core.content.FileProvider
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+private fun csvEscape(s: String): String {
+    val needs = s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r')
+    if (!needs) return s
+    return "\"" + s.replace("\"", "\"\"") + "\""
+}
+
+private fun buildCsv(seriesMap: Map<String, List<Sample>>): String {
+    val sb = StringBuilder()
+    sb.append("var,tMs,y\n")
+    // Flatten all variables; you can change this to export only selectedVar if desired.
+    seriesMap.keys.sorted().forEach { varName ->
+        seriesMap[varName].orEmpty().forEach { s ->
+            sb.append(csvEscape(varName)).append(',')
+            sb.append(s.tMs).append(',')
+            sb.append(s.y).append('\n')
+        }
+    }
+    return sb.toString()
+}
+
+private fun shareCsv(context: android.content.Context, csvText: String) {
+    val exportsDir = File(context.cacheDir, "exports").apply { mkdirs() }
+    val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+    val file = File(exportsDir, "sensorbridge_$ts.csv")
+    file.writeText(csvText, Charsets.UTF_8)
+
+    val uri = FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        file
+    )
+
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/csv"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        putExtra(Intent.EXTRA_SUBJECT, "SensorBridge data ($ts)")
+        putExtra(Intent.EXTRA_TEXT, "CSV export attached.")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(intent, "Share CSV"))
+}
 
 data class Sample(val tMs: Long, val y: Float)
 
@@ -238,6 +286,11 @@ fun AppScreen() {
                 status = msg
                 addLog(msg)
             }) { Text(stringResource(R.string.disconnect)) }
+
+            Button(
+                enabled = seriesMap.isNotEmpty(),
+                onClick = { shareCsv(context, buildCsv(seriesMap)) }
+            ) { Text("Export CSV") }
         }
 
         Divider()
