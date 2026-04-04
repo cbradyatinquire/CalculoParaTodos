@@ -121,14 +121,21 @@ fun AppScreen() {
         return abs - t0
     }
 
-    
+    fun clearData() {
+        seriesMap.clear()
+        selectedVar = null
+        seriesVersion++          // force UI refresh
+        t0AbsMs = null           // or t0Ms if that’s your baseline name
+        frozenNowRelMs = null    // or frozenNowMs if you renamed it
+        // optional: log = listOf("Cleared data")  (or addLog("Cleared data"))
+    }
 
     fun addSample(varName: String, y: Float) {
         val nowMs = SystemClock.elapsedRealtime()
         // when you add the first sample, set baseline once
         if (t0AbsMs == null) t0AbsMs = SystemClock.elapsedRealtime() //new
-        if (t0Ms == null) t0Ms = nowMs  //new
-        val relMs = nowMs - (t0Ms ?: nowMs) //new
+        //if (t0Ms == null) t0Ms = nowMs  //new
+        val relMs = nowMs - (t0AbsMs ?: nowMs) //new
         val s = Sample(relMs, y)   // now Sample.tMs is “ms since start of connection”
 
         val list = seriesMap.getOrPut(varName) { mutableListOf() }
@@ -276,6 +283,11 @@ fun AppScreen() {
                     addLog(status)
                 }
             ) { Text(stringResource(R.string.permission)) }
+
+            Button(
+                enabled = seriesMap.isNotEmpty(),
+                onClick = { clearData() }
+            ) { Text("Clear Data") }
         }
 
         // Serial controls
