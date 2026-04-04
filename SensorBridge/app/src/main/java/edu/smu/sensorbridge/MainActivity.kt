@@ -231,11 +231,7 @@ fun AppScreen() {
                 }
             ) { Text(stringResource(R.string.connect)) }
 
-            Button(onClick = {
-                val msg = serialManager.sendLine("PING")
-                status = msg
-                addLog(msg)
-            }) { Text("PING") }
+
 
             Button(onClick = {
                 val msg = serialManager.disconnect()
