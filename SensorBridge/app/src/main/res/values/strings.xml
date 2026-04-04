@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">SensorBridge</string>
+    <string name="app_name">ArduinoData</string>
     <string name="disconnect">Disconnect</string>
     <string name="status">Status: %1$s</string>
     <string name="found_usb_device_s">Found %1$d USB device(s)</string>
@@ -21,6 +21,8 @@
     <string name="no_samples_yet_stream_numeric_data_to_plot">No samples yet. Stream numeric data to plot.</string>
     <string name="permission_result_no_device">Permission result: no device?</string>
     <string name="connect">Connect</string>
-    <string name="sensorbridge">SensorBridge</string>
+    <string name="sensorbridge">Arduino Data</string>
+    <string name="export">Export CSV</string>
+    <string name="clear">Clear Data</string>
 
 </resources>

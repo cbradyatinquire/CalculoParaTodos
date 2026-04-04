@@ -21,6 +21,8 @@
     <string name="no_samples_yet_stream_numeric_data_to_plot">Ningún dato todavía. Enviar datos numéricos al gráfico</string>
     <string name="permission_result_no_device">Resultado: ningún dispositivo detectado?</string>
     <string name="connect">Conectar</string>
-    <string name="sensorbridge">CpT Para Celulares</string>
+    <string name="sensorbridge">CpT Móvil</string>
+    <string name="export">Exportar CSV</string>
+    <string name="clear">Borrar Datos</string>
 
 </resources>

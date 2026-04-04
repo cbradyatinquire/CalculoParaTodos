@@ -56,7 +56,7 @@ private fun buildCsv(seriesMap: Map<String, List<Sample>>): String {
 private fun shareCsv(context: android.content.Context, csvText: String) {
     val exportsDir = File(context.cacheDir, "exports").apply { mkdirs() }
     val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-    val file = File(exportsDir, "sensorbridge_$ts.csv")
+    val file = File(exportsDir, "arduinodata_$ts.csv")
     file.writeText(csvText, Charsets.UTF_8)
 
     val uri = FileProvider.getUriForFile(
@@ -68,7 +68,7 @@ private fun shareCsv(context: android.content.Context, csvText: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/csv"
         putExtra(Intent.EXTRA_STREAM, uri)
-        putExtra(Intent.EXTRA_SUBJECT, "SensorBridge data ($ts)")
+        putExtra(Intent.EXTRA_SUBJECT, "Arduino Sensor data ($ts)")
         putExtra(Intent.EXTRA_TEXT, "CSV export attached.")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
@@ -287,7 +287,7 @@ fun AppScreen() {
             Button(
                 enabled = seriesMap.isNotEmpty(),
                 onClick = { clearData() }
-            ) { Text("Clear Data") }
+            ) { Text(stringResource(R.string.clear)) }
         }
 
         // Serial controls
@@ -324,7 +324,7 @@ fun AppScreen() {
             Button(
                 enabled = seriesMap.isNotEmpty(),
                 onClick = { shareCsv(context, buildCsv(seriesMap)) }
-            ) { Text("Export CSV") }
+            ) { Text(stringResource(R.string.export)) }
         }
 
         Divider()
