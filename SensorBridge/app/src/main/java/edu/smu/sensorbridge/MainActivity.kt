@@ -9,6 +9,7 @@ import android.os.Looper
 import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 
 import android.content.Intent
 import androidx.core.content.FileProvider
@@ -34,6 +36,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 private fun csvEscape(s: String): String {
     val needs = s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r')
@@ -44,7 +47,6 @@ private fun csvEscape(s: String): String {
 private fun buildCsv(seriesMap: Map<String, List<Sample>>): String {
     val sb = StringBuilder()
     sb.append("var,tMs,y\n")
-    // Flatten all variables; you can change this to export only selectedVar if desired.
     seriesMap.keys.sorted().forEach { varName ->
         seriesMap[varName].orEmpty().forEach { s ->
             sb.append(csvEscape(varName)).append(',')
@@ -104,20 +106,33 @@ fun AppScreen() {
     var selectedDevice by remember { mutableStateOf<UsbDevice?>(null) }
     var isConnected by remember { mutableStateOf(false) }
 
-    // --- Streaming storage: per-variable time series ---
     val seriesMap = remember { mutableMapOf<String, MutableList<Sample>>() }
-    var seriesVersion by remember { mutableStateOf(0) } // triggers UI updates
+    var seriesVersion by remember { mutableStateOf(0) }
 
     var selectedVar by remember { mutableStateOf<String?>(null) }
-
     var showLog by remember { mutableStateOf(false) }
-
     var showClearDialog by remember { mutableStateOf(false) }
 
     val maxSamplesPerVar = 20_000
+    var t0AbsMs by remember { mutableStateOf<Long?>(null) }
+    var frozenNowRelMs by remember { mutableStateOf<Long?>(null) }
 
-    var t0AbsMs by remember { mutableStateOf<Long?>(null) }      // absolute baseline
-    var frozenNowRelMs by remember { mutableStateOf<Long?>(null) } // relative freeze
+    // Wave 4: Hz tracking
+    var deviceCardExpanded by remember { mutableStateOf(true) }
+    var rxHz by remember { mutableStateOf(0f) }
+    var lastRxElapsedMs by remember { mutableStateOf<Long?>(null) }
+    val rxTimestamps = remember { ArrayDeque<Long>() }
+
+    // Wave 4: clock tick for live watchdog display (updates every 500 ms while connected)
+    var clockTick by remember { mutableStateOf(0) }
+    LaunchedEffect(isConnected) {
+        if (isConnected) {
+            while (true) {
+                delay(500L)
+                clockTick++
+            }
+        }
+    }
 
     fun nowRelMs(): Long {
         val abs = SystemClock.elapsedRealtime()
@@ -128,41 +143,48 @@ fun AppScreen() {
     fun clearData() {
         seriesMap.clear()
         selectedVar = null
-        seriesVersion++          // force UI refresh
-        t0AbsMs = null           // or t0Ms if that’s your baseline name
-        frozenNowRelMs = null    // or frozenNowMs if you renamed it
-        // optional: log = listOf("Cleared data")  (or addLog("Cleared data"))
+        seriesVersion++
+        t0AbsMs = null
+        frozenNowRelMs = null
+        rxTimestamps.clear()
+        rxHz = 0f
+        lastRxElapsedMs = null
     }
 
     fun addSample(varName: String, y: Float) {
         val nowMs = SystemClock.elapsedRealtime()
-        // when you add the first sample, set baseline once
-        if (t0AbsMs == null) t0AbsMs = SystemClock.elapsedRealtime() //new
-        //if (t0Ms == null) t0Ms = nowMs  //new
-        val relMs = nowMs - (t0AbsMs ?: nowMs) //new
-        val s = Sample(relMs, y)   // now Sample.tMs is “ms since start of connection”
+        if (t0AbsMs == null) t0AbsMs = nowMs
+        val relMs = nowMs - (t0AbsMs ?: nowMs)
+        val s = Sample(relMs, y)
 
         val list = seriesMap.getOrPut(varName) { mutableListOf() }
         list.add(s)
         if (list.size > maxSamplesPerVar) {
-            // drop oldest in chunks to reduce churn
             val drop = minOf(200, list.size - maxSamplesPerVar)
             list.subList(0, drop).clear()
         }
-
         if (selectedVar == null) selectedVar = varName
+
+        // Track Hz with a rolling 3-second window
+        lastRxElapsedMs = nowMs
+        rxTimestamps.addLast(nowMs)
+        val cutoff = nowMs - 3000L
+        while (rxTimestamps.isNotEmpty() && rxTimestamps.first() < cutoff) rxTimestamps.removeFirst()
+        rxHz = if (rxTimestamps.size >= 2) {
+            val span = rxTimestamps.last() - rxTimestamps.first()
+            if (span > 0) (rxTimestamps.size - 1).toFloat() / (span / 1000f) else 0f
+        } else 0f
+
         seriesVersion++
     }
 
-    // --- Plot window controls ---
-    // We specify time range as "seconds ago" to avoid confusing absolute timestamps.
     val baudRates = listOf(9600, 19200, 38400, 57600, 115200)
     var selectedBaudRate by remember { mutableStateOf(115200) }
     var baudMenuExpanded by remember { mutableStateOf(false) }
 
     var followLive by remember { mutableStateOf(true) }
-    var tMinAgoSecText by remember { mutableStateOf("10") } // e.g., 10 seconds ago
-    var tMaxAgoSecText by remember { mutableStateOf("0") }  // e.g., now
+    var tMinAgoSecText by remember { mutableStateOf("30") }
+    var tMaxAgoSecText by remember { mutableStateOf("0") }
 
     var autoY by remember { mutableStateOf(true) }
     var yMinText by remember { mutableStateOf("") }
@@ -171,7 +193,6 @@ fun AppScreen() {
     fun computeWindow(nowMs: Long): Pair<Long, Long>? {
         val tMinAgo = tMinAgoSecText.toFloatOrNull() ?: return null
         val tMaxAgo = tMaxAgoSecText.toFloatOrNull() ?: return null
-        // ensure tMinAgo >= tMaxAgo (older to newer)
         val older = maxOf(tMinAgo, tMaxAgo)
         val newer = minOf(tMinAgo, tMaxAgo)
         val tMinMs = nowMs - (older * 1000f).toLong()
@@ -179,18 +200,15 @@ fun AppScreen() {
         return if (tMaxMs > tMinMs) tMinMs to tMaxMs else null
     }
 
-    // --- Log ---
     var log by remember { mutableStateOf(listOf<String>()) }
     fun addLog(s: String) {
         log = (listOf(s) + log).take(80)
     }
 
-    // --- Serial manager lifecycle ---
     DisposableEffect(Unit) {
         onDispose { serialManager.close() }
     }
 
-    // --- Permission receiver (registered once) ---
     DisposableEffect(Unit) {
         val receiver = usbHelper.makePermissionReceiver { device, granted ->
             val msg = if (device == null) {
@@ -211,12 +229,10 @@ fun AppScreen() {
         onDispose { context.unregisterReceiver(receiver) }
     }
 
-    // --- RX line handler (supports your var;type;value plus fallbacks) ---
     fun handleRxLine(lineRaw: String) {
         val line = lineRaw.trim()
         if (line.isEmpty()) return
 
-        // Format A: name;type;value  (e.g., distance;n;123.4)
         if (line.contains(';')) {
             val parts = line.split(';')
             if (parts.size >= 3) {
@@ -224,10 +240,8 @@ fun AppScreen() {
                 val type = parts[1].trim().lowercase()
                 val valueStr = parts[2].trim()
 
-                //adding - hoping to remove garbage variable names
                 fun isCleanVarName(name: String) =
-                    name.isNotBlank() && name.all { it.code in 32..126 } // printable ASCII
-                // or stricter: it.isLetterOrDigit() || it=='_' || it=='-'
+                    name.isNotBlank() && name.all { it.code in 32..126 }
                 if (!isCleanVarName(name)) return
 
                 if (type.startsWith("n")) {
@@ -237,13 +251,10 @@ fun AppScreen() {
                         return
                     }
                 }
-
-                // For now: ignore non-numeric types, but log once in a while if you want.
                 return
             }
         }
 
-        // Format B: S,<value> or S,<ms>,<value>
         if (line.startsWith("S,")) {
             val parts = line.split(',')
             val y = when (parts.size) {
@@ -255,7 +266,6 @@ fun AppScreen() {
             return
         }
 
-        // Format C: raw numeric line
         val yRaw = line.toFloatOrNull()
         if (yRaw != null) {
             addSample("value", yRaw)
@@ -263,248 +273,345 @@ fun AppScreen() {
         }
     }
 
-    // --- UI layout: top controls fixed, rest scrolls ---
+    // ── Root layout ──────────────────────────────────────────────────────────
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        horizontalAlignment = Alignment.Start
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp),
     ) {
-        Text(stringResource(R.string.sensorbridge), style = MaterialTheme.typography.headlineSmall)
-        Text(stringResource(R.string.status, status))
-
-        // USB controls
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = {
-                val found = usbHelper.listDevices()
-                devices = found
-                // keep prior selection if still present; otherwise auto-select sole device
-                selectedDevice = found.firstOrNull { it.deviceId == selectedDevice?.deviceId }
-                    ?: found.singleOrNull()
-                status = context.getString(R.string.found_usb_device_s, found.size)
-            }) { Text(stringResource(R.string.refresh_usb)) }
-
-            Button(
-                enabled = selectedDevice != null,
-                onClick = {
-                    val dev = selectedDevice ?: return@Button
-                    if (usbHelper.hasPermission(dev)) {
-                        status =
-                            context.getString(R.string.already_have_permission_for, deviceName(dev))
-                    } else {
-                        status =
-                            context.getString(R.string.requesting_permission_for, deviceName(dev))
-                        usbHelper.requestPermission(dev)
-                    }
-                    addLog(status)
-                }
-            ) { Text(stringResource(R.string.permission)) }
-
-            Button(
-                enabled = seriesMap.isNotEmpty(),
-                onClick = {
-                    //dialogNowSnapshotMs = frozenNowRelMs ?: nowRelMs()   // use your relative-time “now”
-                    //prevFrozenNowRelMs = frozenNowRelMs          // remember prior state (often null)
-                    //dialogNowSnapshotMs = nowRelMs()             // capture "now" (relative)
-                    //frozenNowRelMs = dialogNowSnapshotMs         // freeze plot while dialog is open
-                    showClearDialog = true
-                }
-            ) { Text(stringResource(R.string.clear)) }
-
-            if (showClearDialog) {
-                AlertDialog(
-                    onDismissRequest = {
-                        //frozenNowRelMs = prevFrozenNowRelMs   // restore anchor
-                        showClearDialog = false },
-                    title = { Text(stringResource(R.string.eraseall)) },
-                    text = { Text(stringResource(R.string.areyousureerase)) },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            clearData()
-                            showClearDialog = false
-                        }) { Text(stringResource(R.string.yesconfirm)) }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = {
-                            //frozenNowRelMs = prevFrozenNowRelMs;
-                            //frozenNowRelMs = dialogNowSnapshotMs
-                            showClearDialog = false }) { Text(stringResource(R.string.cancelconfirm)) }
-                    }
-                )
-            }
-        }
-
-        // Baud rate picker
+        // ── Title row + connection badge ──────────────────────────────────
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(stringResource(R.string.baud_rate))
-            Box {
-                OutlinedButton(
-                    onClick = { if (!isConnected) baudMenuExpanded = true },
-                    enabled = !isConnected
+            Text(
+                stringResource(R.string.sensorbridge),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.weight(1f)
+            )
+            // Connection badge
+            val badgeBg = if (isConnected) Color(0xFFD4EDDA) else MaterialTheme.colorScheme.surfaceVariant
+            val badgeFg = if (isConnected) Color(0xFF1A6630) else MaterialTheme.colorScheme.onSurfaceVariant
+            Surface(shape = MaterialTheme.shapes.large, color = badgeBg) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text("$selectedBaudRate")
-                }
-                DropdownMenu(
-                    expanded = baudMenuExpanded,
-                    onDismissRequest = { baudMenuExpanded = false }
-                ) {
-                    baudRates.forEach { rate ->
-                        DropdownMenuItem(
-                            text = { Text("$rate") },
-                            onClick = {
-                                selectedBaudRate = rate
-                                baudMenuExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-            if (isConnected) {
-                Text(
-                    stringResource(R.string.baud_locked),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        // Serial controls
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(
-                enabled = selectedDevice != null && usbHelper.hasPermission(selectedDevice!!) && !isConnected,
-                onClick = {
-                    val dev = selectedDevice ?: return@Button
-                    followLive = true
-                    frozenNowRelMs = null
-                    val msg = serialManager.connect(
-                        dev, selectedBaudRate,
-                        onLine = { rxLine ->
-                            mainHandler.post {
-                                addLog("RX: $rxLine")
-                                handleRxLine(rxLine)
-                            }
-                        },
-                        onError = { errMsg ->
-                            mainHandler.post {
-                                isConnected = false
-                                status = errMsg
-                                addLog("ERR: $errMsg")
-                                frozenNowRelMs = nowRelMs()
-                            }
-                        }
+                    Canvas(Modifier.size(8.dp)) { drawCircle(color = badgeFg) }
+                    Text(
+                        text = if (isConnected) "Connected" else "Disconnected",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = badgeFg,
+                        fontWeight = FontWeight.SemiBold
                     )
-                    isConnected = msg.startsWith("Connected")
-                    status = msg
-                    addLog(msg)
                 }
-            ) { Text(stringResource(R.string.connect)) }
-
-
-
-            Button(
-                enabled = isConnected,
-                onClick = {
-                    val msg = serialManager.disconnect()
-                    isConnected = false
-                    status = msg
-                    addLog(msg)
-                    followLive = false
-                    frozenNowRelMs = nowRelMs()
-                }
-            ) { Text(stringResource(R.string.disconnect)) }
-
-            Button(
-                enabled = seriesMap.isNotEmpty(),
-                onClick = { shareCsv(context, buildCsv(seriesMap)) }
-            ) { Text(stringResource(R.string.export)) }
+            }
         }
 
-        Divider()
-
-        // Scrollable content area (devices + log + live + plot)
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = WindowInsets.navigationBars.asPaddingValues()
         ) {
+
+            // ── USB Device Card (collapsible) ─────────────────────────────
             item {
-                // Device list
-                if (devices.isEmpty()) {
-                    Text(stringResource(R.string.no_usb_devices_detected_plug_arduino_via_otg_then_refresh))
-                } else {
-                    Text(stringResource(R.string.detected_devices), fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(4.dp))
-                    devices.forEach { dev ->
-                        val isSelected = dev.deviceId == selectedDevice?.deviceId
-                        val hasPerm = usbHelper.hasPermission(dev)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(enabled = !isConnected) { selectedDevice = dev }
-                                .background(
-                                    if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                                    else Color.Transparent,
-                                    shape = MaterialTheme.shapes.small
-                                )
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    // Header row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { deviceCardExpanded = !deviceCardExpanded }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "USB DEVICE",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.weight(1f))
+                        if (!deviceCardExpanded && selectedDevice != null) {
                             Text(
-                                text = if (isSelected) "▶" else "  ",
-                                color = MaterialTheme.colorScheme.primary
+                                deviceName(selectedDevice!!),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
                             )
-                            Column(Modifier.weight(1f)) {
-                                Text(deviceName(dev), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                            if (usbHelper.hasPermission(selectedDevice!!)) {
+                                Text("✓", color = Color(0xFF1A6630), fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Text(
+                            if (deviceCardExpanded) "▲" else "▼",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Collapsible body
+                    AnimatedVisibility(visible = deviceCardExpanded) {
+                        Column(modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp)) {
+                            Divider()
+                            Spacer(Modifier.height(8.dp))
+
+                            if (devices.isEmpty()) {
                                 Text(
-                                    "VID:0x${dev.vendorId.toString(16).uppercase()}  PID:0x${dev.productId.toString(16).uppercase()}",
+                                    stringResource(R.string.no_usb_devices_detected_plug_arduino_via_otg_then_refresh),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            } else {
+                                devices.forEach { dev ->
+                                    val isSelected = dev.deviceId == selectedDevice?.deviceId
+                                    val hasPerm = usbHelper.hasPermission(dev)
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable(enabled = !isConnected) { selectedDevice = dev }
+                                            .background(
+                                                if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                                else Color.Transparent,
+                                                shape = MaterialTheme.shapes.small
+                                            )
+                                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isSelected) "▶" else "  ",
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                deviceName(dev),
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                            Text(
+                                                "VID:0x${dev.vendorId.toString(16).uppercase()}  PID:0x${dev.productId.toString(16).uppercase()}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Text(
+                                            text = if (hasPerm) "✓ Permission" else "No permission",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (hasPerm) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
                             }
-                            Text(
-                                text = if (hasPerm) "✓ Permission" else "No permission",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (hasPerm) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.error
-                            )
+
+                            Spacer(Modifier.height(8.dp))
+                            Divider()
+                            Spacer(Modifier.height(8.dp))
+
+                            // Baud rate picker
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(stringResource(R.string.baud_rate))
+                                Box {
+                                    OutlinedButton(
+                                        onClick = { if (!isConnected) baudMenuExpanded = true },
+                                        enabled = !isConnected
+                                    ) { Text("$selectedBaudRate") }
+                                    DropdownMenu(
+                                        expanded = baudMenuExpanded,
+                                        onDismissRequest = { baudMenuExpanded = false }
+                                    ) {
+                                        baudRates.forEach { rate ->
+                                            DropdownMenuItem(
+                                                text = { Text("$rate") },
+                                                onClick = {
+                                                    selectedBaudRate = rate
+                                                    baudMenuExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                if (isConnected) {
+                                    Text(
+                                        stringResource(R.string.baud_locked),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
 
-
+            // ── Connection Card ───────────────────────────────────────────
             item {
-                // Log
-                Text(stringResource(R.string.log), fontWeight = FontWeight.Bold)
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "CONNECTION",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = log.firstOrNull() ?: "—",
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1
-                    )
-                    TextButton(onClick = { showLog = !showLog }) {
-                        Text(if (showLog) stringResource(R.string.hide) else stringResource(R.string.show))
+                        // Connect / Disconnect / Refresh
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                enabled = selectedDevice != null
+                                        && selectedDevice?.let { usbHelper.hasPermission(it) } == true
+                                        && !isConnected,
+                                onClick = {
+                                    val dev = selectedDevice ?: return@Button
+                                    followLive = true
+                                    frozenNowRelMs = null
+                                    val msg = serialManager.connect(
+                                        dev, selectedBaudRate,
+                                        onLine = { rxLine ->
+                                            mainHandler.post {
+                                                addLog("RX: $rxLine")
+                                                handleRxLine(rxLine)
+                                            }
+                                        },
+                                        onError = { errMsg ->
+                                            mainHandler.post {
+                                                isConnected = false
+                                                status = errMsg
+                                                addLog("ERR: $errMsg")
+                                                frozenNowRelMs = nowRelMs()
+                                            }
+                                        }
+                                    )
+                                    isConnected = msg.startsWith("Connected")
+                                    status = msg
+                                    addLog(msg)
+                                }
+                            ) { Text(stringResource(R.string.connect)) }
+
+                            Button(
+                                enabled = isConnected,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error
+                                ),
+                                onClick = {
+                                    val msg = serialManager.disconnect()
+                                    isConnected = false
+                                    status = msg
+                                    addLog(msg)
+                                    followLive = false
+                                    frozenNowRelMs = nowRelMs()
+                                }
+                            ) { Text(stringResource(R.string.disconnect)) }
+
+                            OutlinedButton(onClick = {
+                                val found = usbHelper.listDevices()
+                                devices = found
+                                selectedDevice = found.firstOrNull { it.deviceId == selectedDevice?.deviceId }
+                                    ?: found.singleOrNull()
+                                status = context.getString(R.string.found_usb_device_s, found.size)
+                            }) { Text(stringResource(R.string.refresh_usb)) }
+                        }
+
+                        // Permission / Export / Clear
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                enabled = selectedDevice != null,
+                                onClick = {
+                                    val dev = selectedDevice ?: return@OutlinedButton
+                                    if (usbHelper.hasPermission(dev)) {
+                                        status = context.getString(R.string.already_have_permission_for, deviceName(dev))
+                                    } else {
+                                        status = context.getString(R.string.requesting_permission_for, deviceName(dev))
+                                        usbHelper.requestPermission(dev)
+                                    }
+                                    addLog(status)
+                                }
+                            ) { Text(stringResource(R.string.permission)) }
+
+                            OutlinedButton(
+                                enabled = seriesMap.isNotEmpty(),
+                                onClick = { shareCsv(context, buildCsv(seriesMap)) }
+                            ) { Text(stringResource(R.string.export)) }
+
+                            OutlinedButton(
+                                enabled = seriesMap.isNotEmpty(),
+                                onClick = { showClearDialog = true }
+                            ) { Text(stringResource(R.string.clear)) }
+                        }
+
+                        if (showClearDialog) {
+                            AlertDialog(
+                                onDismissRequest = { showClearDialog = false },
+                                title = { Text(stringResource(R.string.eraseall)) },
+                                text = { Text(stringResource(R.string.areyousureerase)) },
+                                confirmButton = {
+                                    TextButton(onClick = { clearData(); showClearDialog = false }) {
+                                        Text(stringResource(R.string.yesconfirm))
+                                    }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showClearDialog = false }) {
+                                        Text(stringResource(R.string.cancelconfirm))
+                                    }
+                                }
+                            )
+                        }
+
+                        // Streaming strip (Wave 4: watchdog + Hz)
+                        if (isConnected || lastRxElapsedMs != null) {
+                            val nowElapsed = remember(clockTick) { SystemClock.elapsedRealtime() }
+                            val agoSec = lastRxElapsedMs?.let { (nowElapsed - it) / 1000f } ?: 0f
+                            val isStale = agoSec > 2f
+                            val stripBg = if (isStale)
+                                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                            else
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            val dotColor = if (isStale) MaterialTheme.colorScheme.error
+                                          else Color(0xFF1A6630)
+
+                            Surface(
+                                shape = MaterialTheme.shapes.small,
+                                color = stripBg,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Canvas(Modifier.size(8.dp)) { drawCircle(color = dotColor) }
+                                    Text(
+                                        text = if (isStale) "Stalled" else "Streaming",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        "· last packet ${"%.1f".format(agoSec)} s ago",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(Modifier.weight(1f))
+                                    if (rxHz > 0f) {
+                                        Text(
+                                            "~${"%.1f".format(rxHz)} Hz",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-
-                if (showLog) {
-                    // show a bounded list so it doesn't dominate
-                    log.take(20).forEach { Text(it) }
-                }
-
             }
 
+            // ── Live Monitor Card ─────────────────────────────────────────
             item {
-                // Live/Plot panel
                 val vars = remember(seriesVersion) { seriesMap.keys.sorted() }
                 val currentVar = selectedVar
                 val currentSeries = remember(seriesVersion, currentVar) {
@@ -512,29 +619,39 @@ fun AppScreen() {
                     list?.toList() ?: emptyList()
                 }
                 val latest = currentSeries.lastOrNull()
+                val totalSamples = remember(seriesVersion) { seriesMap.values.sumOf { it.size } }
 
                 Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(stringResource(R.string.live_monitor_plot), style = MaterialTheme.typography.titleMedium)
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            "LIVE MONITOR",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
-                        // Variable selector (if you have >1 var)
+                        // Variable selector
                         if (vars.isNotEmpty()) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Var:", fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.width(8.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("Variable:", fontWeight = FontWeight.Medium)
                                 var expanded by remember { mutableStateOf(false) }
                                 Box {
                                     OutlinedButton(onClick = { expanded = true }) {
                                         Text(currentVar ?: vars.first())
                                     }
-                                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                    DropdownMenu(
+                                        expanded = expanded,
+                                        onDismissRequest = { expanded = false }
+                                    ) {
                                         vars.forEach { v ->
                                             DropdownMenuItem(
                                                 text = { Text(v) },
-                                                onClick = {
-                                                    selectedVar = v
-                                                    expanded = false
-                                                }
+                                                onClick = { selectedVar = v; expanded = false }
                                             )
                                         }
                                     }
@@ -542,113 +659,209 @@ fun AppScreen() {
                             }
                         }
 
-                        Text(
-                            text = if (latest == null)
-                                stringResource(R.string.latest)
-                            else
-                                stringResource(R.string.latest_t_ms_y, latest.tMs, latest.y)
-                        )
-
-                        // Time window controls
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                OutlinedTextField(
-                                    value = tMinAgoSecText,
-                                    onValueChange = { tMinAgoSecText = it },
-                                    label = { Text(stringResource(R.string.tmin_s_ago)) },
-                                    singleLine = true,
-                                    modifier = Modifier.width(140.dp)
-                                )
-                                OutlinedTextField(
-                                    value = tMaxAgoSecText,
-                                    onValueChange = { tMaxAgoSecText = it },
-                                    label = { Text(stringResource(R.string.tmax_s_ago)) },
-                                    singleLine = true,
-                                    modifier = Modifier.width(140.dp)
-                                )
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(
-                                    checked = followLive,
-                                    onCheckedChange = { checked ->
-                                        followLive = checked
-                                        //frozenNowMs = if (checked) null else SystemClock.elapsedRealtime()
-                                        frozenNowRelMs = if (checked) null else nowRelMs()
-                                    }
-                                )
-                                Text(stringResource(R.string.follow_live))
-                            }
-                        }
-
-
-                        // Y range controls
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(checked = autoY, onCheckedChange = { autoY = it })
-                                Text("Auto Y")
-                            }
-                            OutlinedTextField(
-                                value = yMinText,
-                                onValueChange = { yMinText = it },
-                                label = { Text("yMin") },
-                                singleLine = true,
-                                enabled = !autoY,
-                                modifier = Modifier.width(120.dp)
+                        // Large latest value
+                        if (latest != null) {
+                            Text(
+                                text = formatValue(latest.y),
+                                style = MaterialTheme.typography.headlineLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
                             )
-                            OutlinedTextField(
-                                value = yMaxText,
-                                onValueChange = { yMaxText = it },
-                                label = { Text("yMax") },
-                                singleLine = true,
-                                enabled = !autoY,
-                                modifier = Modifier.width(120.dp)
+                            // Hz · samples · age meta row
+                            val nowElapsed = remember(clockTick, seriesVersion) { SystemClock.elapsedRealtime() }
+                            val agoSec = lastRxElapsedMs?.let { (nowElapsed - it) / 1000f } ?: 0f
+                            Text(
+                                text = buildString {
+                                    if (rxHz > 0f) append("~${"%.1f".format(rxHz)} Hz · ")
+                                    append("%,d".format(totalSamples))
+                                    append(" samples")
+                                    if (lastRxElapsedMs != null) append(" · ${"%.1f".format(agoSec)} s ago")
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            Text(
+                                stringResource(R.string.no_samples_yet_stream_numeric_data_to_plot),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
                         // Plot
-                        val nowMs = frozenNowRelMs ?: nowRelMs()
-                        val (tMinMs, tMaxMs) = computeWindow(nowMs) ?: (nowMs - 10_000L to nowMs)
-                        //val nowMs = frozenNowMs ?: SystemClock.elapsedRealtime()
-                        //val (tMinMs, tMaxMs) = computeWindow(nowMs) ?: (nowMs - 10_000L to nowMs)
                         if (currentSeries.isNotEmpty()) {
-                            val (plotYMin, plotYMax) =
-                                if (autoY) {
-                                    val inWin = currentSeries.filter { it.tMs in tMinMs..tMaxMs }
-                                    val ymin = inWin.minOfOrNull { it.y } ?: 0f
-                                    val ymax = inWin.maxOfOrNull { it.y } ?: (ymin + 1f)
-                                    val pad = ((ymax - ymin).takeIf { it > 1e-6f } ?: 1f) * 0.1f
-                                    (ymin - pad) to (ymax + pad)
-                                } else {
-                                    val ymin = yMinText.toFloatOrNull() ?: 0f
-                                    val ymax = yMaxText.toFloatOrNull() ?: (ymin + 1f)
-                                    if (ymax > ymin) ymin to ymax else ymin to (ymin + 1f)
-                                }
+                            val nowMs = frozenNowRelMs ?: nowRelMs()
+                            val (tMinMs, tMaxMs) = computeWindow(nowMs) ?: (nowMs - 30_000L to nowMs)
+                            val (plotYMin, plotYMax) = if (autoY) {
+                                val inWin = currentSeries.filter { it.tMs in tMinMs..tMaxMs }
+                                val ymin = inWin.minOfOrNull { it.y } ?: 0f
+                                val ymax = inWin.maxOfOrNull { it.y } ?: (ymin + 1f)
+                                val pad = ((ymax - ymin).takeIf { it > 1e-6f } ?: 1f) * 0.1f
+                                (ymin - pad) to (ymax + pad)
+                            } else {
+                                val ymin = yMinText.toFloatOrNull() ?: 0f
+                                val ymax = yMaxText.toFloatOrNull() ?: (ymin + 1f)
+                                if (ymax > ymin) ymin to ymax else ymin to (ymin + 1f)
+                            }
 
-                            TimeSeriesPlot(
-                                samples = currentSeries,
-                                tMinMs = tMinMs,
-                                tMaxMs = tMaxMs,
-                                yMin = plotYMin,
-                                yMax = plotYMax,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(220.dp)
+                            val samplesInWindow = remember(seriesVersion, tMinMs, tMaxMs) {
+                                currentSeries.count { it.tMs in tMinMs..tMaxMs }
+                            }
+
+                            // Plot with PAUSED overlay
+                            Box {
+                                TimeSeriesPlot(
+                                    samples = currentSeries,
+                                    tMinMs = tMinMs,
+                                    tMaxMs = tMaxMs,
+                                    yMin = plotYMin,
+                                    yMax = plotYMax,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(220.dp)
+                                )
+                                if (!followLive) {
+                                    Surface(
+                                        shape = MaterialTheme.shapes.small,
+                                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.92f),
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(8.dp)
+                                    ) {
+                                        Text(
+                                            "⏸ PAUSED",
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                                        )
+                                    }
+                                }
+                            }
+
+                            // "Show last X s to Y s ago"
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("Show last", style = MaterialTheme.typography.bodySmall)
+                                OutlinedTextField(
+                                    value = tMinAgoSecText,
+                                    onValueChange = { tMinAgoSecText = it },
+                                    singleLine = true,
+                                    modifier = Modifier.width(68.dp),
+                                    textStyle = MaterialTheme.typography.bodySmall.copy(textAlign = TextAlign.Center)
+                                )
+                                Text("s to", style = MaterialTheme.typography.bodySmall)
+                                OutlinedTextField(
+                                    value = tMaxAgoSecText,
+                                    onValueChange = { tMaxAgoSecText = it },
+                                    singleLine = true,
+                                    modifier = Modifier.width(68.dp),
+                                    textStyle = MaterialTheme.typography.bodySmall.copy(textAlign = TextAlign.Center)
+                                )
+                                Text("s ago", style = MaterialTheme.typography.bodySmall)
+                            }
+
+                            // Follow live + Auto Y
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = followLive,
+                                        onCheckedChange = { checked ->
+                                            followLive = checked
+                                            frozenNowRelMs = if (checked) null else nowRelMs()
+                                        }
+                                    )
+                                    Text(stringResource(R.string.follow_live))
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(checked = autoY, onCheckedChange = { autoY = it })
+                                    Text("Auto Y")
+                                }
+                            }
+
+                            // Manual Y range (when Auto Y is off)
+                            if (!autoY) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    OutlinedTextField(
+                                        value = yMinText,
+                                        onValueChange = { yMinText = it },
+                                        label = { Text("yMin") },
+                                        singleLine = true,
+                                        modifier = Modifier.width(120.dp)
+                                    )
+                                    OutlinedTextField(
+                                        value = yMaxText,
+                                        onValueChange = { yMaxText = it },
+                                        label = { Text("yMax") },
+                                        singleLine = true,
+                                        modifier = Modifier.width(120.dp)
+                                    )
+                                }
+                            }
+
+                            // "Showing X of Y samples in window"
+                            Text(
+                                "Showing %,d of %,d samples in window".format(samplesInWindow, totalSamples),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.End
                             )
-                        } else {
-                            Text(stringResource(R.string.no_samples_yet_stream_numeric_data_to_plot))
+                        }
+                    }
+                }
+            }
+
+            // ── Log ───────────────────────────────────────────────────────
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                stringResource(R.string.log),
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = { showLog = !showLog }) {
+                                Text(if (showLog) stringResource(R.string.hide) else stringResource(R.string.show))
+                            }
+                        }
+                        Text(
+                            text = log.firstOrNull() ?: "—",
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (showLog) {
+                            Spacer(Modifier.height(4.dp))
+                            log.take(20).forEach {
+                                Text(it, style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+// Format a sensor value for large display
+private fun formatValue(y: Float): String = when {
+    kotlin.math.abs(y) >= 10_000f -> "%.0f".format(y)
+    kotlin.math.abs(y) >= 100f    -> "%.1f".format(y)
+    kotlin.math.abs(y) >= 1f      -> "%.2f".format(y)
+    else                           -> "%.3f".format(y)
 }
 
 @Composable
@@ -663,21 +876,19 @@ fun TimeSeriesPlot(
     val spanT = (tMaxMs - tMinMs).coerceAtLeast(1L)
     val spanY = (yMax - yMin).takeIf { it > 1e-9f } ?: 1f
 
-    // Colors tuned for a light background Card
-    val traceColor = Color(0xFF202124) // dark gray
-    val axisColor  = Color(0xFF5F6368) // medium gray
-    val gridColor  = Color(0xFFBDC1C6) // light gray
+    val traceColor = Color(0xFF202124)
+    val axisColor  = Color(0xFF5F6368)
+    val gridColor  = Color(0xFFBDC1C6)
     val labelColor = Color(0xFF202124)
 
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
 
-        // Leave padding for labels
-        val padLeft = 54f
+        val padLeft   = 54f
         val padBottom = 28f
-        val padTop = 10f
-        val padRight = 10f
+        val padTop    = 10f
+        val padRight  = 10f
 
         val plotW = (w - padLeft - padRight).coerceAtLeast(1f)
         val plotH = (h - padTop - padBottom).coerceAtLeast(1f)
@@ -688,7 +899,7 @@ fun TimeSeriesPlot(
         fun yOf(y: Float): Float =
             padTop + (1f - ((y - yMin) / spanY)) * plotH
 
-        // --- Gridlines (fixed count; works fine with variable yMin/yMax) ---
+        // Gridlines
         val yDivs = 4
         for (i in 0..yDivs) {
             val yy = padTop + (i.toFloat() / yDivs) * plotH
@@ -699,7 +910,6 @@ fun TimeSeriesPlot(
                 strokeWidth = 1f
             )
         }
-
         val xDivs = 4
         for (i in 0..xDivs) {
             val xx = padLeft + (i.toFloat() / xDivs) * plotW
@@ -711,7 +921,7 @@ fun TimeSeriesPlot(
             )
         }
 
-        // --- Axes box ---
+        // Axes
         drawLine(
             color = axisColor,
             start = androidx.compose.ui.geometry.Offset(padLeft, padTop),
@@ -725,13 +935,12 @@ fun TimeSeriesPlot(
             strokeWidth = 2f
         )
 
-        // --- Data in window ---
+        // Data trace
         val inWin = samples.asSequence()
             .filter { it.tMs in tMinMs..tMaxMs }
             .toList()
 
         if (inWin.size >= 2) {
-            // Decimate: about 1 point per pixel column
             val maxPts = plotW.toInt().coerceAtLeast(200)
             val step = (inWin.size / maxPts).coerceAtLeast(1)
 
@@ -741,17 +950,12 @@ fun TimeSeriesPlot(
                 val s = inWin[i]
                 val x = xOf(s.tMs)
                 val y = yOf(s.y)
-                if (first) {
-                    path.moveTo(x, y)
-                    first = false
-                } else {
-                    path.lineTo(x, y)
-                }
+                if (first) { path.moveTo(x, y); first = false } else path.lineTo(x, y)
             }
             drawPath(path = path, color = traceColor, style = Stroke(width = 3f))
         }
 
-        // --- Labels (yMin/yMax + time range) ---
+        // Labels
         drawIntoCanvas { canvas ->
             val paint = android.graphics.Paint().apply {
                 isAntiAlias = true
@@ -762,32 +966,42 @@ fun TimeSeriesPlot(
                     (labelColor.blue * 255).toInt()
                 )
                 textSize = 26f
+                // Wave 4: right-align labels flush to the axis line
+                textAlign = android.graphics.Paint.Align.RIGHT
             }
 
-            fun fmtY(v: Float): String = if (kotlin.math.abs(v) >= 1000f) {
-                "%.0f".format(v)
-            } else if (kotlin.math.abs(v) >= 10f) {
-                "%.2f".format(v)
-            } else {
-                "%.3f".format(v)
+            fun fmtY(v: Float): String = when {
+                kotlin.math.abs(v) >= 1000f -> "%.0f".format(v)
+                kotlin.math.abs(v) >= 10f   -> "%.1f".format(v)
+                else                         -> "%.2f".format(v)
             }
 
-            // Left axis labels
-            canvas.nativeCanvas.drawText(fmtY(yMax), 6f, padTop + 22f, paint)
-            canvas.nativeCanvas.drawText(fmtY(yMin), 6f, padTop + plotH, paint)
+            // Y labels at each gridline (top, mid, bottom + intermediate)
+            for (i in 0..yDivs) {
+                val ratio = i.toFloat() / yDivs
+                val yVal  = yMax - ratio * (yMax - yMin)
+                val yy    = padTop + ratio * plotH
+                // vertically center text on the gridline
+                val baseline = yy + paint.textSize / 3f
+                canvas.nativeCanvas.drawText(fmtY(yVal), padLeft - 4f, baseline, paint)
+            }
 
-            // Bottom time labels: show seconds span (not absolute time)
+            // X labels: left, right (and mid)
+            paint.textAlign = android.graphics.Paint.Align.LEFT
             val spanSec = spanT / 1000f
-            val leftLabel = "${"%.1f".format(spanSec)}s ago"
-            val rightLabel = "0.0s ago"
-            canvas.nativeCanvas.drawText(leftLabel, padLeft, h - 6f, paint)
-            // right aligned
-            val rightWidth = paint.measureText(rightLabel)
-            canvas.nativeCanvas.drawText(rightLabel, padLeft + plotW - rightWidth, h - 6f, paint)
+            val leftLabel  = "${"%.1f".format(spanSec)}s ago"
+            val midLabel   = "${"%.1f".format(spanSec / 2)}s ago"
+            val rightLabel = "0s ago"
+
+            paint.textAlign = android.graphics.Paint.Align.LEFT
+            canvas.nativeCanvas.drawText(leftLabel, padLeft, h - 4f, paint)
+            paint.textAlign = android.graphics.Paint.Align.CENTER
+            canvas.nativeCanvas.drawText(midLabel, padLeft + plotW / 2f, h - 4f, paint)
+            paint.textAlign = android.graphics.Paint.Align.RIGHT
+            canvas.nativeCanvas.drawText(rightLabel, padLeft + plotW, h - 4f, paint)
         }
     }
 }
-
 
 private fun deviceName(d: UsbDevice): String =
     d.productName ?: d.deviceName
