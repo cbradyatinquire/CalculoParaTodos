@@ -27,11 +27,16 @@ class UsbHelper(private val context: Context) {
     fun requestPermission(device: UsbDevice) {
         val intent = Intent(ACTION_USB_PERMISSION)
 
-        val flags =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            else
+        // FLAG_MUTABLE is required here: the system must add EXTRA_DEVICE and
+        // EXTRA_PERMISSION_GRANTED to the intent when it fires the broadcast back.
+        // UsbManager.requestPermission() is a documented exception to the usual
+        // "prefer FLAG_IMMUTABLE" rule. FLAG_MUTABLE was added in API 31.
+        val flags = when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            else ->
                 PendingIntent.FLAG_UPDATE_CURRENT
+        }
 
         val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, flags)
         usbManager.requestPermission(device, pendingIntent)
