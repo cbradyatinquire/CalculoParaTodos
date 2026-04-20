@@ -16,7 +16,7 @@ class SerialManager(private val context: Context) {
     private var ioManager: SerialInputOutputManager? = null
     private val executor = Executors.newSingleThreadExecutor()
 
-    fun connect(device: UsbDevice, baudRate: Int = 115200, onLine: (String) -> Unit): String {
+    fun connect(device: UsbDevice, baudRate: Int = 115200, onLine: (String) -> Unit, onError: (String) -> Unit = {}): String {
         val driver = UsbSerialProber.getDefaultProber().probeDevice(device)
             ?: return "No USB serial driver found for device."
 
@@ -48,7 +48,7 @@ class SerialManager(private val context: Context) {
             }
 
             override fun onRunError(e: Exception) {
-                onLine("IO error: ${e.message}")
+                onError("IO error: ${e.message}")
             }
         }
 

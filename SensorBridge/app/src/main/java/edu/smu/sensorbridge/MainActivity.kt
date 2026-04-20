@@ -332,13 +332,23 @@ fun AppScreen() {
                     val dev = devices.first()
                     followLive = true
                     frozenNowRelMs = null
-                    val msg = serialManager.connect(dev, 115200) { rxLine ->
-                        // serial callback is background thread -> hop to main
-                        mainHandler.post {
-                            addLog("RX: $rxLine")
-                            handleRxLine(rxLine)
+                    val msg = serialManager.connect(
+                        dev, 115200,
+                        onLine = { rxLine ->
+                            mainHandler.post {
+                                addLog("RX: $rxLine")
+                                handleRxLine(rxLine)
+                            }
+                        },
+                        onError = { errMsg ->
+                            mainHandler.post {
+                                isConnected = false
+                                status = errMsg
+                                addLog("ERR: $errMsg")
+                                frozenNowRelMs = nowRelMs()
+                            }
                         }
-                    }
+                    )
                     isConnected = msg.startsWith("Connected")
                     status = msg
                     addLog(msg)
