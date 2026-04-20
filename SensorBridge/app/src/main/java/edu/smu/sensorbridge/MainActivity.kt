@@ -10,6 +10,8 @@ import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
@@ -99,6 +101,7 @@ fun AppScreen() {
 
     var status by remember { mutableStateOf("Idle") }
     var devices by remember { mutableStateOf<List<UsbDevice>>(emptyList()) }
+    var selectedDevice by remember { mutableStateOf<UsbDevice?>(null) }
     var isConnected by remember { mutableStateOf(false) }
 
     // --- Streaming storage: per-variable time series ---
@@ -270,14 +273,18 @@ fun AppScreen() {
         // USB controls
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = {
-                devices = usbHelper.listDevices()
-                status = context.getString(R.string.found_usb_device_s, devices.size)
+                val found = usbHelper.listDevices()
+                devices = found
+                // keep prior selection if still present; otherwise auto-select sole device
+                selectedDevice = found.firstOrNull { it.deviceId == selectedDevice?.deviceId }
+                    ?: found.singleOrNull()
+                status = context.getString(R.string.found_usb_device_s, found.size)
             }) { Text(stringResource(R.string.refresh_usb)) }
 
             Button(
-                enabled = devices.isNotEmpty(),
+                enabled = selectedDevice != null,
                 onClick = {
-                    val dev = devices.first()
+                    val dev = selectedDevice ?: return@Button
                     if (usbHelper.hasPermission(dev)) {
                         status =
                             context.getString(R.string.already_have_permission_for, deviceName(dev))
@@ -327,9 +334,9 @@ fun AppScreen() {
         // Serial controls
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(
-                enabled = devices.isNotEmpty() && usbHelper.hasPermission(devices.first()) && !isConnected,
+                enabled = selectedDevice != null && usbHelper.hasPermission(selectedDevice!!) && !isConnected,
                 onClick = {
-                    val dev = devices.first()
+                    val dev = selectedDevice ?: return@Button
                     followLive = true
                     frozenNowRelMs = null
                     val msg = serialManager.connect(
@@ -388,10 +395,42 @@ fun AppScreen() {
                     Text(stringResource(R.string.no_usb_devices_detected_plug_arduino_via_otg_then_refresh))
                 } else {
                     Text(stringResource(R.string.detected_devices), fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
                     devices.forEach { dev ->
-                        Text(
-                            "- ${deviceName(dev)}  VID=0x${dev.vendorId.toString(16)}  PID=0x${dev.productId.toString(16)}  perm=${usbHelper.hasPermission(dev)}"
-                        )
+                        val isSelected = dev.deviceId == selectedDevice?.deviceId
+                        val hasPerm = usbHelper.hasPermission(dev)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = !isConnected) { selectedDevice = dev }
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                    else Color.Transparent,
+                                    shape = MaterialTheme.shapes.small
+                                )
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = if (isSelected) "▶" else "  ",
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(deviceName(dev), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                Text(
+                                    "VID:0x${dev.vendorId.toString(16).uppercase()}  PID:0x${dev.productId.toString(16).uppercase()}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Text(
+                                text = if (hasPerm) "✓ Permission" else "No permission",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (hasPerm) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
             }
