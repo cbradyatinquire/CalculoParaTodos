@@ -177,6 +177,11 @@ fun AppScreen() {
         log = (listOf(s) + log).take(80)
     }
 
+    // --- Serial manager lifecycle ---
+    DisposableEffect(Unit) {
+        onDispose { serialManager.close() }
+    }
+
     // --- Permission receiver (registered once) ---
     DisposableEffect(Unit) {
         val receiver = usbHelper.makePermissionReceiver { device, granted ->

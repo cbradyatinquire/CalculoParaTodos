@@ -79,4 +79,9 @@ class SerialManager(private val context: Context) {
 
         return "Disconnected"
     }
+
+    fun close() {
+        disconnect()
+        executor.shutdown()
+    }
 }
