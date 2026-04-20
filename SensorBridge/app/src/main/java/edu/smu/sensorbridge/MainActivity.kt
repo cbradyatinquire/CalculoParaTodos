@@ -99,6 +99,7 @@ fun AppScreen() {
 
     var status by remember { mutableStateOf("Idle") }
     var devices by remember { mutableStateOf<List<UsbDevice>>(emptyList()) }
+    var isConnected by remember { mutableStateOf(false) }
 
     // --- Streaming storage: per-variable time series ---
     val seriesMap = remember { mutableMapOf<String, MutableList<Sample>>() }
@@ -326,7 +327,7 @@ fun AppScreen() {
         // Serial controls
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(
-                enabled = devices.isNotEmpty() && usbHelper.hasPermission(devices.first()),
+                enabled = devices.isNotEmpty() && usbHelper.hasPermission(devices.first()) && !isConnected,
                 onClick = {
                     val dev = devices.first()
                     followLive = true
@@ -335,14 +336,10 @@ fun AppScreen() {
                         // serial callback is background thread -> hop to main
                         mainHandler.post {
                             addLog("RX: $rxLine")
-                            if (followLive) {
-                                // keep window anchored to "now" by default
-                                // (computeWindow uses current elapsedRealtime)
-                                // no state change needed here; the plot recomposes on seriesVersion
-                            }
                             handleRxLine(rxLine)
                         }
                     }
+                    isConnected = msg.startsWith("Connected")
                     status = msg
                     addLog(msg)
                 }
@@ -350,13 +347,17 @@ fun AppScreen() {
 
 
 
-            Button(onClick = {
-                val msg = serialManager.disconnect()
-                status = msg
-                addLog(msg)
-                followLive = false
-                frozenNowRelMs = nowRelMs()
-            }) { Text(stringResource(R.string.disconnect)) }
+            Button(
+                enabled = isConnected,
+                onClick = {
+                    val msg = serialManager.disconnect()
+                    isConnected = false
+                    status = msg
+                    addLog(msg)
+                    followLive = false
+                    frozenNowRelMs = nowRelMs()
+                }
+            ) { Text(stringResource(R.string.disconnect)) }
 
             Button(
                 enabled = seriesMap.isNotEmpty(),
