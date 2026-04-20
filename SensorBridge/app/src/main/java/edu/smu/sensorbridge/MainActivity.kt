@@ -428,7 +428,8 @@ fun AppScreen() {
         // Scrollable content area (devices + log + live + plot)
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = WindowInsets.navigationBars.asPaddingValues()
         ) {
             item {
                 // Device list
