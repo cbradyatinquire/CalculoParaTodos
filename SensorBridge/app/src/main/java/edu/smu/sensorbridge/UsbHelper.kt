@@ -25,7 +25,9 @@ class UsbHelper(private val context: Context) {
     }
 
     fun requestPermission(device: UsbDevice) {
-        val intent = Intent(ACTION_USB_PERMISSION)
+        // setPackage makes the intent explicit, required when using FLAG_MUTABLE on API 31+.
+        // Without it, Android blocks the mutable PendingIntent as a security risk.
+        val intent = Intent(ACTION_USB_PERMISSION).apply { setPackage(context.packageName) }
 
         // FLAG_MUTABLE is required here: the system must add EXTRA_DEVICE and
         // EXTRA_PERMISSION_GRANTED to the intent when it fires the broadcast back.
