@@ -5,6 +5,7 @@ import android.content.*
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Build
+import com.hoho.android.usbserial.driver.UsbSerialProber
 
 
 class UsbHelper(private val context: Context) {
@@ -17,7 +18,9 @@ class UsbHelper(private val context: Context) {
     private val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
 
     fun listDevices(): List<UsbDevice> {
-        return usbManager.deviceList.values.toList()
+        return UsbSerialProber.getDefaultProber()
+            .findAllDrivers(usbManager)
+            .map { it.device }
     }
 
     fun hasPermission(device: UsbDevice): Boolean {
