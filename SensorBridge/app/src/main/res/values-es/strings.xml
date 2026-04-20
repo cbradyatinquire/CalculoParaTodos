@@ -28,5 +28,7 @@
     <string name="areyousureerase">¿Está seguro que usted quiere borrar todos los datos?  Esto no puede deshacerse.</string>
     <string name="yesconfirm">Sí</string>
     <string name="cancelconfirm">Cancelar</string>
+    <string name="baud_rate">Velocidad en baudios:</string>
+    <string name="baud_locked">bloqueado mientras está conectado</string>
 
 </resources>

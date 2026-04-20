@@ -28,5 +28,7 @@
     <string name="areyousureerase">Are you sure you want to erase all data?  This cannot be undone.</string>
     <string name="yesconfirm">Yes</string>
     <string name="cancelconfirm">Cancel</string>
+    <string name="baud_rate">Baud rate:</string>
+    <string name="baud_locked">locked while connected</string>
 
 </resources>

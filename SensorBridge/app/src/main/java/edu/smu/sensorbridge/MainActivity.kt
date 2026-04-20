@@ -156,6 +156,10 @@ fun AppScreen() {
 
     // --- Plot window controls ---
     // We specify time range as "seconds ago" to avoid confusing absolute timestamps.
+    val baudRates = listOf(9600, 19200, 38400, 57600, 115200)
+    var selectedBaudRate by remember { mutableStateOf(115200) }
+    var baudMenuExpanded by remember { mutableStateOf(false) }
+
     var followLive by remember { mutableStateOf(true) }
     var tMinAgoSecText by remember { mutableStateOf("10") } // e.g., 10 seconds ago
     var tMaxAgoSecText by remember { mutableStateOf("0") }  // e.g., now
@@ -331,6 +335,43 @@ fun AppScreen() {
             }
         }
 
+        // Baud rate picker
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(stringResource(R.string.baud_rate))
+            Box {
+                OutlinedButton(
+                    onClick = { if (!isConnected) baudMenuExpanded = true },
+                    enabled = !isConnected
+                ) {
+                    Text("$selectedBaudRate")
+                }
+                DropdownMenu(
+                    expanded = baudMenuExpanded,
+                    onDismissRequest = { baudMenuExpanded = false }
+                ) {
+                    baudRates.forEach { rate ->
+                        DropdownMenuItem(
+                            text = { Text("$rate") },
+                            onClick = {
+                                selectedBaudRate = rate
+                                baudMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            if (isConnected) {
+                Text(
+                    stringResource(R.string.baud_locked),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
         // Serial controls
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(
@@ -340,7 +381,7 @@ fun AppScreen() {
                     followLive = true
                     frozenNowRelMs = null
                     val msg = serialManager.connect(
-                        dev, 115200,
+                        dev, selectedBaudRate,
                         onLine = { rxLine ->
                             mainHandler.post {
                                 addLog("RX: $rxLine")
