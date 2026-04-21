@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 
 import android.content.Intent
 import androidx.core.content.FileProvider
+import edu.smu.sensorbridge.theme.SensorBridgeTheme
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -85,7 +86,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
+            SensorBridgeTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     AppScreen()
                 }
@@ -118,7 +119,7 @@ fun AppScreen() {
     var frozenNowRelMs by remember { mutableStateOf<Long?>(null) }
 
     // Wave 4: Hz tracking
-    var deviceCardExpanded by remember { mutableStateOf(true) }
+    var deviceCardExpanded by remember { mutableStateOf(false) }
     var rxHz by remember { mutableStateOf(0f) }
     var lastRxElapsedMs by remember { mutableStateOf<Long?>(null) }
     val rxTimestamps = remember { ArrayDeque<Long>() }

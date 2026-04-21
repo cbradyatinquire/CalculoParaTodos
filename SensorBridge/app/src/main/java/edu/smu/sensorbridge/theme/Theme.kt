@@ -1,62 +1,61 @@
 package edu.smu.sensorbridge.theme
 
 import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary            = Blue80,
+    onPrimary          = Color(0xFF003087),
+    primaryContainer   = Color(0xFF1565C0),
+    onPrimaryContainer = Color(0xFFBBDEFB),
+    secondary          = BlueGrey80,
+    onSecondary        = Color(0xFF263238),
+    secondaryContainer = Color(0xFF37474F),
+    onSecondaryContainer = Color(0xFFCFD8DC),
+    tertiary           = Teal80,
+    onTertiary         = Color(0xFF004D57),
+    tertiaryContainer  = Color(0xFF00838F),
+    onTertiaryContainer = Color(0xFFE0F7FA),
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary            = Blue40,
+    onPrimary          = Color.White,
+    primaryContainer   = Color(0xFFBBDEFB),
+    onPrimaryContainer = Color(0xFF0D47A1),
+    secondary          = BlueGrey40,
+    onSecondary        = Color.White,
+    secondaryContainer = Color(0xFFCFD8DC),
+    onSecondaryContainer = Color(0xFF263238),
+    tertiary           = Teal40,
+    onTertiary         = Color.White,
+    tertiaryContainer  = Color(0xFFE0F7FA),
+    onTertiaryContainer = Color(0xFF006064),
+    background         = Color(0xFFF4F6FA),
+    surface            = Color.White,
+    surfaceVariant     = Color(0xFFE3EAF4),
+    onSurfaceVariant   = Color(0xFF546E7A),
 )
 
 @Composable
 fun SensorBridgeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            //window.statusBarColor = colorScheme.primary.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }
