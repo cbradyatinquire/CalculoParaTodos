@@ -521,47 +521,51 @@ fun AppScreen() {
                             addLog(status)
                         }
 
-                        // Row 1: Connect / Disconnect / Refresh USB
+                        // Row 1: Connect | Disconnect
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (primaryIsConnect) {
-                                Button(onClick = connectOnClick) { Text(stringResource(R.string.connect)) }
+                                Button(modifier = Modifier.weight(1f), onClick = connectOnClick) { Text(stringResource(R.string.connect)) }
                             } else {
-                                OutlinedButton(enabled = false, onClick = {}) { Text(stringResource(R.string.connect)) }
+                                OutlinedButton(modifier = Modifier.weight(1f), enabled = false, onClick = {}) { Text(stringResource(R.string.connect)) }
                             }
-
                             if (isConnected) {
                                 Button(
+                                    modifier = Modifier.weight(1f),
                                     onClick = disconnectOnClick,
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                                 ) { Text(stringResource(R.string.disconnect)) }
                             } else {
-                                OutlinedButton(enabled = false, onClick = {}) { Text(stringResource(R.string.disconnect)) }
-                            }
-
-                            if (primaryIsRefresh) {
-                                Button(onClick = refreshOnClick) { Text(stringResource(R.string.refresh_usb)) }
-                            } else {
-                                OutlinedButton(onClick = refreshOnClick) { Text(stringResource(R.string.refresh_usb)) }
+                                OutlinedButton(modifier = Modifier.weight(1f), enabled = false, onClick = {}) { Text(stringResource(R.string.disconnect)) }
                             }
                         }
 
-                        // Row 2: Permission / Export CSV / Clear Data
+                        // Row 2: Refresh USB | Permission
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (primaryIsRefresh) {
+                                Button(modifier = Modifier.weight(1f), onClick = refreshOnClick) { Text(stringResource(R.string.refresh_usb)) }
+                            } else {
+                                OutlinedButton(modifier = Modifier.weight(1f), onClick = refreshOnClick) { Text(stringResource(R.string.refresh_usb)) }
+                            }
                             if (primaryIsPermission) {
-                                Button(onClick = permissionOnClick) { Text(stringResource(R.string.permission)) }
+                                Button(modifier = Modifier.weight(1f), onClick = permissionOnClick) { Text(stringResource(R.string.permission)) }
                             } else {
                                 OutlinedButton(
+                                    modifier = Modifier.weight(1f),
                                     enabled = selectedDevice != null && !isConnected,
                                     onClick = permissionOnClick
                                 ) { Text(stringResource(R.string.permission)) }
                             }
+                        }
 
+                        // Row 3: Export CSV | Clear Data
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(
+                                modifier = Modifier.weight(1f),
                                 enabled = seriesMap.isNotEmpty(),
                                 onClick = { shareCsv(context, buildCsv(seriesMap)) }
                             ) { Text(stringResource(R.string.export)) }
-
                             OutlinedButton(
+                                modifier = Modifier.weight(1f),
                                 enabled = seriesMap.isNotEmpty(),
                                 onClick = { showClearDialog = true }
                             ) { Text(stringResource(R.string.clear)) }
