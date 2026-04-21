@@ -1,34 +1,67 @@
 <resources>
     <string name="app_name">CpT Para Celulares</string>
-    <string name="disconnect">Desconectar</string>
-    <string name="status">Estatus: %1$s</string>
-    <string name="found_usb_device_s">Encontró %1$d dispositivo(s) USB</string>
-    <string name="refresh_usb">Refrescar USB</string>
-    <string name="already_have_permission_for">Ya tenemos permiso para %1$s</string>
-    <string name="requesting_permission_for">Pidiendo permiso para %1$s</string>
-    <string name="permission">Permiso</string>
-    <string name="no_usb_devices_detected_plug_arduino_via_otg_then_refresh">Ningún dispositivo USB detectado. Enchufe el Arduino por USB OTG, luego Refrescar.</string>
-    <string name="detected_devices">Dispositivo(s) detectado(s):</string>
-    <string name="log">Registro:</string>
-    <string name="hide">Ocultar</string>
-    <string name="show">Mostrar</string>
-    <string name="live_monitor_plot">Monitorear en Vivo + Graficar</string>
-    <string name="latest">Últimos datos: —</string>
-    <string name="latest_t_ms_y">Último: t=%1$d ms, y=%2$s</string>
-    <string name="tmin_s_ago">tMin (hace _ seg)</string>
-    <string name="tmax_s_ago">tMax (hace _ seg)</string>
-    <string name="follow_live">Seguir en vivo</string>
-    <string name="no_samples_yet_stream_numeric_data_to_plot">Ningún dato todavía. Enviar datos numéricos al gráfico</string>
-    <string name="permission_result_no_device">Resultado: ningún dispositivo detectado?</string>
-    <string name="connect">Conectar</string>
     <string name="sensorbridge">CpT Móvil</string>
+
+    <!-- Connection badge -->
+    <string name="badge_connected">Conectado</string>
+    <string name="badge_disconnected">Desconectado</string>
+
+    <!-- Section headers -->
+    <string name="section_usb_device">DISPOSITIVO USB</string>
+    <string name="section_connection">CONEXIÓN</string>
+    <string name="section_live_monitor">MONITOR EN VIVO</string>
+
+    <!-- USB device card -->
+    <string name="no_usb_devices_detected_plug_arduino_via_otg_then_refresh">Ningún dispositivo USB detectado. Enchufe el Arduino por USB OTG, luego Refrescar.</string>
+    <string name="permission_granted_indicator">✓ Permiso</string>
+    <string name="permission_denied_indicator">Sin permiso</string>
+    <string name="baud_rate">Velocidad en baudios:</string>
+    <string name="baud_locked">bloqueado mientras está conectado</string>
+
+    <!-- Connection card buttons -->
+    <string name="connect">Conectar</string>
+    <string name="disconnect">Desconectar</string>
+    <string name="refresh_usb">Refrescar USB</string>
+    <string name="permission">Permiso</string>
     <string name="export">Exportar CSV</string>
     <string name="clear">Borrar Datos</string>
+
+    <!-- Clear dialog -->
     <string name="eraseall">¿Borrar todos los datos?</string>
     <string name="areyousureerase">¿Está seguro que usted quiere borrar todos los datos?  Esto no puede deshacerse.</string>
     <string name="yesconfirm">Sí</string>
     <string name="cancelconfirm">Cancelar</string>
-    <string name="baud_rate">Velocidad en baudios:</string>
-    <string name="baud_locked">bloqueado mientras está conectado</string>
 
+    <!-- Streaming strip -->
+    <string name="streaming">Transmitiendo</string>
+    <string name="stalled">Sin señal</string>
+    <string name="last_packet_ago">· último paquete hace %1$.1f s</string>
+    <string name="approx_hz">~%1$.1f Hz</string>
+
+    <!-- Live monitor -->
+    <string name="variable_label">Variable:</string>
+    <string name="no_samples_yet_stream_numeric_data_to_plot">Ningún dato todavía. Enviar datos numéricos al gráfico.</string>
+
+    <!-- Plot controls -->
+    <string name="paused_badge">⏸ PAUSADO</string>
+    <string name="show_last">Mostrar últimos</string>
+    <string name="s_to">s hasta</string>
+    <string name="s_ago">s atrás</string>
+    <string name="follow_live">Seguir en vivo</string>
+    <string name="auto_y">Auto Y</string>
+    <string name="y_min">yMín</string>
+    <string name="y_max">yMáx</string>
+    <string name="showing_samples_in_window">Mostrando %1$s de %2$s muestras en ventana</string>
+
+    <!-- Log section -->
+    <string name="log">Registro:</string>
+    <string name="hide">Ocultar</string>
+    <string name="show">Mostrar</string>
+
+    <!-- Status messages -->
+    <string name="status_idle">En espera</string>
+    <string name="found_usb_device_s">Encontró %1$d dispositivo(s) USB</string>
+    <string name="already_have_permission_for">Ya tenemos permiso para %1$s</string>
+    <string name="requesting_permission_for">Pidiendo permiso para %1$s</string>
+    <string name="permission_result_no_device">Resultado: ningún dispositivo detectado?</string>
 </resources>
