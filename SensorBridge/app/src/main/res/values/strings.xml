@@ -1,34 +1,67 @@
 <resources>
     <string name="app_name">ArduinoData</string>
-    <string name="disconnect">Disconnect</string>
-    <string name="status">Status: %1$s</string>
-    <string name="found_usb_device_s">Found %1$d USB device(s)</string>
-    <string name="refresh_usb">Refresh USB</string>
-    <string name="already_have_permission_for">Already have permission for %1$s</string>
-    <string name="requesting_permission_for">Requesting permission for %1$s</string>
-    <string name="permission">Permission</string>
-    <string name="no_usb_devices_detected_plug_arduino_via_otg_then_refresh">No USB devices detected. Plug Arduino via OTG, then Refresh.</string>
-    <string name="detected_devices">Detected devices:</string>
-    <string name="log">Log:</string>
-    <string name="hide">Hide</string>
-    <string name="show">Show</string>
-    <string name="live_monitor_plot">Live Monitor + Plot</string>
-    <string name="latest">Latest: —</string>
-    <string name="latest_t_ms_y">Latest: t=%1$d ms, y=%2$s</string>
-    <string name="tmin_s_ago">tMin (s ago)</string>
-    <string name="tmax_s_ago">tMax (s ago)</string>
-    <string name="follow_live">Follow live</string>
-    <string name="no_samples_yet_stream_numeric_data_to_plot">No samples yet. Stream numeric data to plot.</string>
-    <string name="permission_result_no_device">Permission result: no device?</string>
-    <string name="connect">Connect</string>
     <string name="sensorbridge">Arduino Data</string>
+
+    <!-- Connection badge -->
+    <string name="badge_connected">Connected</string>
+    <string name="badge_disconnected">Disconnected</string>
+
+    <!-- Section headers -->
+    <string name="section_usb_device">USB DEVICE</string>
+    <string name="section_connection">CONNECTION</string>
+    <string name="section_live_monitor">LIVE MONITOR</string>
+
+    <!-- USB device card -->
+    <string name="no_usb_devices_detected_plug_arduino_via_otg_then_refresh">No USB devices detected. Plug Arduino via OTG, then Refresh.</string>
+    <string name="permission_granted_indicator">✓ Permission</string>
+    <string name="permission_denied_indicator">No permission</string>
+    <string name="baud_rate">Baud rate:</string>
+    <string name="baud_locked">locked while connected</string>
+
+    <!-- Connection card buttons -->
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="refresh_usb">Refresh USB</string>
+    <string name="permission">Permission</string>
     <string name="export">Export CSV</string>
     <string name="clear">Clear Data</string>
+
+    <!-- Clear dialog -->
     <string name="eraseall">Erase All Data?</string>
     <string name="areyousureerase">Are you sure you want to erase all data?  This cannot be undone.</string>
     <string name="yesconfirm">Yes</string>
     <string name="cancelconfirm">Cancel</string>
-    <string name="baud_rate">Baud rate:</string>
-    <string name="baud_locked">locked while connected</string>
 
+    <!-- Streaming strip -->
+    <string name="streaming">Streaming</string>
+    <string name="stalled">Stalled</string>
+    <string name="last_packet_ago">· last packet %1$.1f s ago</string>
+    <string name="approx_hz">~%1$.1f Hz</string>
+
+    <!-- Live monitor -->
+    <string name="variable_label">Variable:</string>
+    <string name="no_samples_yet_stream_numeric_data_to_plot">No samples yet. Stream numeric data to plot.</string>
+
+    <!-- Plot controls -->
+    <string name="paused_badge">⏸ PAUSED</string>
+    <string name="show_last">Show last</string>
+    <string name="s_to">s to</string>
+    <string name="s_ago">s ago</string>
+    <string name="follow_live">Follow live</string>
+    <string name="auto_y">Auto Y</string>
+    <string name="y_min">yMin</string>
+    <string name="y_max">yMax</string>
+    <string name="showing_samples_in_window">Showing %1$s of %2$s samples in window</string>
+
+    <!-- Log section -->
+    <string name="log">Log:</string>
+    <string name="hide">Hide</string>
+    <string name="show">Show</string>
+
+    <!-- Status messages -->
+    <string name="status_idle">Idle</string>
+    <string name="found_usb_device_s">Found %1$d USB device(s)</string>
+    <string name="already_have_permission_for">Already have permission for %1$s</string>
+    <string name="requesting_permission_for">Requesting permission for %1$s</string>
+    <string name="permission_result_no_device">Permission result: no device?</string>
 </resources>

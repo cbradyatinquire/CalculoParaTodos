@@ -102,7 +102,8 @@ fun AppScreen() {
     val serialManager = remember { SerialManager(context) }
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
 
-    var status by remember { mutableStateOf("Idle") }
+    val idleString = stringResource(R.string.status_idle)
+    var status by remember { mutableStateOf(idleString) }
     var devices by remember { mutableStateOf<List<UsbDevice>>(emptyList()) }
     var selectedDevice by remember { mutableStateOf<UsbDevice?>(null) }
     var isConnected by remember { mutableStateOf(false) }
@@ -304,7 +305,7 @@ fun AppScreen() {
                 ) {
                     Canvas(Modifier.size(8.dp)) { drawCircle(color = badgeFg) }
                     Text(
-                        text = if (isConnected) "Connected" else "Disconnected",
+                        text = if (isConnected) stringResource(R.string.badge_connected) else stringResource(R.string.badge_disconnected),
                         style = MaterialTheme.typography.labelMedium,
                         color = badgeFg,
                         fontWeight = FontWeight.SemiBold
@@ -332,7 +333,7 @@ fun AppScreen() {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            "USB DEVICE",
+                            stringResource(R.string.section_usb_device),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -399,7 +400,7 @@ fun AppScreen() {
                                             )
                                         }
                                         Text(
-                                            text = if (hasPerm) "✓ Permission" else "No permission",
+                                            text = if (hasPerm) stringResource(R.string.permission_granted_indicator) else stringResource(R.string.permission_denied_indicator),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = if (hasPerm) MaterialTheme.colorScheme.primary
                                             else MaterialTheme.colorScheme.error
@@ -456,7 +457,7 @@ fun AppScreen() {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            "CONNECTION",
+                            stringResource(R.string.section_connection),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -608,19 +609,19 @@ fun AppScreen() {
                                 ) {
                                     Canvas(Modifier.size(8.dp)) { drawCircle(color = dotColor) }
                                     Text(
-                                        text = if (isStale) "Stalled" else "Streaming",
+                                        text = if (isStale) stringResource(R.string.stalled) else stringResource(R.string.streaming),
                                         style = MaterialTheme.typography.bodySmall,
                                         fontWeight = FontWeight.Medium
                                     )
                                     Text(
-                                        "· last packet ${"%.1f".format(agoSec)} s ago",
+                                        stringResource(R.string.last_packet_ago, agoSec),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Spacer(Modifier.weight(1f))
                                     if (rxHz > 0f) {
                                         Text(
-                                            "~${"%.1f".format(rxHz)} Hz",
+                                            stringResource(R.string.approx_hz, rxHz),
                                             style = MaterialTheme.typography.bodySmall,
                                             fontWeight = FontWeight.SemiBold
                                         )
@@ -649,7 +650,7 @@ fun AppScreen() {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            "LIVE MONITOR",
+                            stringResource(R.string.section_live_monitor),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -660,7 +661,7 @@ fun AppScreen() {
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text("Variable:", fontWeight = FontWeight.Medium)
+                                Text(stringResource(R.string.variable_label), fontWeight = FontWeight.Medium)
                                 var expanded by remember { mutableStateOf(false) }
                                 Box {
                                     OutlinedButton(onClick = { expanded = true }) {
@@ -694,9 +695,8 @@ fun AppScreen() {
                             val agoSec = lastRxElapsedMs?.let { (nowElapsed - it) / 1000f } ?: 0f
                             Text(
                                 text = buildString {
-                                    if (rxHz > 0f) append("~${"%.1f".format(rxHz)} Hz · ")
-                                    append("%,d".format(totalSamples))
-                                    append(" samples")
+                                    if (rxHz > 0f) append(context.getString(R.string.approx_hz, rxHz) + " · ")
+                                    append("%,d samples".format(totalSamples))
                                     if (lastRxElapsedMs != null) append(" · ${"%.1f".format(agoSec)} s ago")
                                 },
                                 style = MaterialTheme.typography.bodySmall,
@@ -751,7 +751,7 @@ fun AppScreen() {
                                             .padding(8.dp)
                                     ) {
                                         Text(
-                                            "⏸ PAUSED",
+                                            stringResource(R.string.paused_badge),
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
@@ -766,7 +766,7 @@ fun AppScreen() {
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text("Show last", style = MaterialTheme.typography.bodySmall)
+                                Text(stringResource(R.string.show_last), style = MaterialTheme.typography.bodySmall)
                                 OutlinedTextField(
                                     value = tMinAgoSecText,
                                     onValueChange = { tMinAgoSecText = it },
@@ -774,7 +774,7 @@ fun AppScreen() {
                                     modifier = Modifier.width(68.dp),
                                     textStyle = MaterialTheme.typography.bodySmall.copy(textAlign = TextAlign.Center)
                                 )
-                                Text("s to", style = MaterialTheme.typography.bodySmall)
+                                Text(stringResource(R.string.s_to), style = MaterialTheme.typography.bodySmall)
                                 OutlinedTextField(
                                     value = tMaxAgoSecText,
                                     onValueChange = { tMaxAgoSecText = it },
@@ -782,7 +782,7 @@ fun AppScreen() {
                                     modifier = Modifier.width(68.dp),
                                     textStyle = MaterialTheme.typography.bodySmall.copy(textAlign = TextAlign.Center)
                                 )
-                                Text("s ago", style = MaterialTheme.typography.bodySmall)
+                                Text(stringResource(R.string.s_ago), style = MaterialTheme.typography.bodySmall)
                             }
 
                             // Follow live + Auto Y
@@ -802,7 +802,7 @@ fun AppScreen() {
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Checkbox(checked = autoY, onCheckedChange = { autoY = it })
-                                    Text("Auto Y")
+                                    Text(stringResource(R.string.auto_y))
                                 }
                             }
 
@@ -815,14 +815,14 @@ fun AppScreen() {
                                     OutlinedTextField(
                                         value = yMinText,
                                         onValueChange = { yMinText = it },
-                                        label = { Text("yMin") },
+                                        label = { Text(stringResource(R.string.y_min)) },
                                         singleLine = true,
                                         modifier = Modifier.width(120.dp)
                                     )
                                     OutlinedTextField(
                                         value = yMaxText,
                                         onValueChange = { yMaxText = it },
-                                        label = { Text("yMax") },
+                                        label = { Text(stringResource(R.string.y_max)) },
                                         singleLine = true,
                                         modifier = Modifier.width(120.dp)
                                     )
@@ -831,7 +831,7 @@ fun AppScreen() {
 
                             // "Showing X of Y samples in window"
                             Text(
-                                "Showing %,d of %,d samples in window".format(samplesInWindow, totalSamples),
+                                stringResource(R.string.showing_samples_in_window, "%,d".format(samplesInWindow), "%,d".format(totalSamples)),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.fillMaxWidth(),
