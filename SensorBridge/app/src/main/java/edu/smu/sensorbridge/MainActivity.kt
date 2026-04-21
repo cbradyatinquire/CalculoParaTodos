@@ -10,6 +10,9 @@ import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -87,10 +90,54 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SensorBridgeTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    AppScreen()
+                var splashVisible by remember { mutableStateOf(true) }
+                LaunchedEffect(Unit) {
+                    delay(2500L)
+                    splashVisible = false
+                }
+                Crossfade(
+                    targetState = splashVisible,
+                    animationSpec = tween(durationMillis = 500),
+                    label = "splash_fade"
+                ) { showSplash ->
+                    if (showSplash) {
+                        SplashScreen()
+                    } else {
+                        Surface(modifier = Modifier.fillMaxSize()) {
+                            AppScreen()
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun SplashScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.primary),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Cálculo para Todos",
+                fontSize = 36.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "Calculus for All",
+                fontSize = 20.sp,
+                color = Color.White.copy(alpha = 0.80f),
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
