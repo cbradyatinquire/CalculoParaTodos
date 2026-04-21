@@ -461,78 +461,99 @@ fun AppScreen() {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
-                        // Connect / Disconnect / Refresh
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                enabled = selectedDevice != null
-                                        && selectedDevice?.let { usbHelper.hasPermission(it) } == true
-                                        && !isConnected,
-                                onClick = {
-                                    val dev = selectedDevice ?: return@Button
-                                    followLive = true
-                                    frozenNowRelMs = null
-                                    val msg = serialManager.connect(
-                                        dev, selectedBaudRate,
-                                        onLine = { rxLine ->
-                                            mainHandler.post {
-                                                addLog("RX: $rxLine")
-                                                handleRxLine(rxLine)
-                                            }
-                                        },
-                                        onError = { errMsg ->
-                                            mainHandler.post {
-                                                isConnected = false
-                                                status = errMsg
-                                                addLog("ERR: $errMsg")
-                                                frozenNowRelMs = nowRelMs()
-                                            }
-                                        }
-                                    )
-                                    isConnected = msg.startsWith("Connected")
-                                    status = msg
-                                    addLog(msg)
-                                }
-                            ) { Text(stringResource(R.string.connect)) }
+                        // Derive the one primary action for the current state:
+                        //   no device        → Refresh USB
+                        //   device, no perm  → Permission
+                        //   device+perm, off → Connect
+                        //   connected        → Disconnect  (red)
+                        val hasPerm = selectedDevice?.let { usbHelper.hasPermission(it) } ?: false
+                        val primaryIsRefresh    = !isConnected && selectedDevice == null
+                        val primaryIsPermission = !isConnected && selectedDevice != null && !hasPerm
+                        val primaryIsConnect    = !isConnected && selectedDevice != null && hasPerm
+                        // primaryIsDisconnect  = isConnected (already the red Button below)
 
-                            Button(
-                                enabled = isConnected,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error
-                                ),
-                                onClick = {
-                                    val msg = serialManager.disconnect()
-                                    isConnected = false
-                                    status = msg
-                                    addLog(msg)
-                                    followLive = false
-                                    frozenNowRelMs = nowRelMs()
+                        val connectOnClick: () -> Unit = onClick@{
+                            val dev = selectedDevice ?: return@onClick
+                            followLive = true
+                            frozenNowRelMs = null
+                            val msg = serialManager.connect(
+                                dev, selectedBaudRate,
+                                onLine = { rxLine ->
+                                    mainHandler.post {
+                                        addLog("RX: $rxLine")
+                                        handleRxLine(rxLine)
+                                    }
+                                },
+                                onError = { errMsg ->
+                                    mainHandler.post {
+                                        isConnected = false
+                                        status = errMsg
+                                        addLog("ERR: $errMsg")
+                                        frozenNowRelMs = nowRelMs()
+                                    }
                                 }
-                            ) { Text(stringResource(R.string.disconnect)) }
-
-                            OutlinedButton(onClick = {
-                                val found = usbHelper.listDevices()
-                                devices = found
-                                selectedDevice = found.firstOrNull { it.deviceId == selectedDevice?.deviceId }
-                                    ?: found.singleOrNull()
-                                status = context.getString(R.string.found_usb_device_s, found.size)
-                            }) { Text(stringResource(R.string.refresh_usb)) }
+                            )
+                            isConnected = msg.startsWith("Connected")
+                            status = msg
+                            addLog(msg)
+                        }
+                        val disconnectOnClick: () -> Unit = {
+                            val msg = serialManager.disconnect()
+                            isConnected = false; status = msg; addLog(msg)
+                            followLive = false; frozenNowRelMs = nowRelMs()
+                        }
+                        val refreshOnClick: () -> Unit = {
+                            val found = usbHelper.listDevices()
+                            devices = found
+                            selectedDevice = found.firstOrNull { it.deviceId == selectedDevice?.deviceId }
+                                ?: found.singleOrNull()
+                            status = context.getString(R.string.found_usb_device_s, found.size)
+                        }
+                        val permissionOnClick: () -> Unit = onClick@{
+                            val dev = selectedDevice ?: return@onClick
+                            if (usbHelper.hasPermission(dev)) {
+                                status = context.getString(R.string.already_have_permission_for, deviceName(dev))
+                            } else {
+                                status = context.getString(R.string.requesting_permission_for, deviceName(dev))
+                                usbHelper.requestPermission(dev)
+                            }
+                            addLog(status)
                         }
 
-                        // Permission / Export / Clear
+                        // Row 1: Connect / Disconnect / Refresh USB
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(
-                                enabled = selectedDevice != null,
-                                onClick = {
-                                    val dev = selectedDevice ?: return@OutlinedButton
-                                    if (usbHelper.hasPermission(dev)) {
-                                        status = context.getString(R.string.already_have_permission_for, deviceName(dev))
-                                    } else {
-                                        status = context.getString(R.string.requesting_permission_for, deviceName(dev))
-                                        usbHelper.requestPermission(dev)
-                                    }
-                                    addLog(status)
-                                }
-                            ) { Text(stringResource(R.string.permission)) }
+                            if (primaryIsConnect) {
+                                Button(onClick = connectOnClick) { Text(stringResource(R.string.connect)) }
+                            } else {
+                                OutlinedButton(enabled = false, onClick = {}) { Text(stringResource(R.string.connect)) }
+                            }
+
+                            if (isConnected) {
+                                Button(
+                                    onClick = disconnectOnClick,
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) { Text(stringResource(R.string.disconnect)) }
+                            } else {
+                                OutlinedButton(enabled = false, onClick = {}) { Text(stringResource(R.string.disconnect)) }
+                            }
+
+                            if (primaryIsRefresh) {
+                                Button(onClick = refreshOnClick) { Text(stringResource(R.string.refresh_usb)) }
+                            } else {
+                                OutlinedButton(onClick = refreshOnClick) { Text(stringResource(R.string.refresh_usb)) }
+                            }
+                        }
+
+                        // Row 2: Permission / Export CSV / Clear Data
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (primaryIsPermission) {
+                                Button(onClick = permissionOnClick) { Text(stringResource(R.string.permission)) }
+                            } else {
+                                OutlinedButton(
+                                    enabled = selectedDevice != null && !isConnected,
+                                    onClick = permissionOnClick
+                                ) { Text(stringResource(R.string.permission)) }
+                            }
 
                             OutlinedButton(
                                 enabled = seriesMap.isNotEmpty(),
