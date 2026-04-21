@@ -9,7 +9,7 @@
     <!-- Section headers -->
     <string name="section_usb_device">DISPOSITIVO USB</string>
     <string name="section_connection">CONEXIÓN</string>
-    <string name="section_live_monitor">MONITOR EN VIVO</string>
+    <string name="section_live_monitor">EN VIVO</string>
 
     <!-- USB device card -->
     <string name="no_usb_devices_detected_plug_arduino_via_otg_then_refresh">Ningún dispositivo USB detectado. Enchufe el Arduino por USB OTG, luego Refrescar.</string>
@@ -44,9 +44,9 @@
 
     <!-- Plot controls -->
     <string name="paused_badge">⏸ PAUSADO</string>
-    <string name="show_last">Mostrar últimos</string>
-    <string name="s_to">s hasta</string>
-    <string name="s_ago">s atrás</string>
+    <string name="show_last">Ver últimos</string>
+    <string name="s_to">s a</string>
+    <string name="s_ago">s antes</string>
     <string name="follow_live">Seguir en vivo</string>
     <string name="auto_y">Auto Y</string>
     <string name="y_min">yMín</string>
