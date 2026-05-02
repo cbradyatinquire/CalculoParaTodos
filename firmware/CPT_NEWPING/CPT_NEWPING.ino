@@ -2,8 +2,8 @@
 
 #include <NewPing.h>
 
-#define TRIGGER_PIN  12  // Arduino pin tied to trigger pin on the ultrasonic sensor.
-#define ECHO_PIN     11 // Arduino pin tied to echo pin on the ultrasonic sensor.
+#define TRIGGER_PIN  9  // Arduino pin tied to trigger pin on the ultrasonic sensor.
+#define ECHO_PIN     8 // Arduino pin tied to echo pin on the ultrasonic sensor.
 #define MAX_DISTANCE 250 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
 
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and maximum distance.
